@@ -1,26 +1,16 @@
-# Pixel Perfect Clone
+# Painel Operacional WMS
 
-Implement exactly the screenshot and nothing else
+Dashboard operacional para consulta de ordens, expedição, estoque, indicadores e monitoramento via API E-SHIP.
 
-This project was built with [Lovable](https://lovable.dev).
-
-**Live app**: https://wms-painel.lovable.app
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/52e39fbf-f8b6-40c3-a7b7-24aaa5f3e548).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+Aplicação publicada em: https://painelwms.vercel.app
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Requires Node.js and npm.
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+npm install --no-package-lock
 npm run dev
 ```
+
+The API key can be configured in the application's Configuração page for the current browser, or provided to the server as `ESHIP_API_KEY`.
