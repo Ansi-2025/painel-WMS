@@ -10,6 +10,7 @@ import { consultarWms } from "@/lib/wms.functions";
 import {
   ConfiguracaoWmsSchema,
   CONFIGURACAO_WMS_VAZIA,
+  consultaDaConfiguracao,
   listarModulosPersonalizados,
   lerConfiguracaoWms,
   ModuloPersonalizadoSchema,
@@ -80,7 +81,7 @@ function Configuracao() {
     setChaveConfigurada(Boolean(validacao.data.apiKey));
     setSalvando(true);
     try {
-      const resposta = await consultar({ data: validacao.data });
+      const resposta = await consultar({ data: consultaDaConfiguracao(validacao.data) });
       setMensagem(`Configuração salva. Conexão confirmada: ${resposta.ordens.length} ordens retornadas.`);
     } catch (error) {
       const detalhe =

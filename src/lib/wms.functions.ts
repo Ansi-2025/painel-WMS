@@ -2,11 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import type { OrdemWMS } from "./wms-api";
 import {
   ConsultaEshipSchema,
-  ConfiguracaoWmsSchema,
-  CONFIGURACAO_WMS_PADRAO,
-  consultaDaConfiguracao,
   type ConsultaEship,
-  type ConfiguracaoWms,
 } from "./wms-config";
 
 // Proxy seguro: a chave ESHIP_API_KEY fica somente no servidor.
@@ -55,8 +51,8 @@ async function consultarEship(
 }
 
 export const consultarWms = createServerFn({ method: "POST" })
-  .validator((data) => ConfiguracaoWmsSchema.parse(data))
-  .handler(({ data }) => consultarEship(consultaDaConfiguracao(data)));
+  .validator((data) => ConsultaEshipSchema.parse(data))
+  .handler(({ data }) => consultarEship(data));
 
 export const consultarExpedicao = consultarWms;
 export const consultarEstoque = consultarWms;
