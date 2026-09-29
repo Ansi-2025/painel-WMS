@@ -6,6 +6,7 @@ import { BarraModulos } from "@/components/BarraModulos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ParametrosEshipEditor } from "@/components/ParametrosEshipEditor";
 import { consultarWms } from "@/lib/wms.functions";
 import {
   ConfiguracaoWmsSchema,
@@ -42,7 +43,7 @@ function Configuracao() {
   const [modulos, setModulos] = useState<ModuloPersonalizado[]>([]);
   const [nomeModulo, setNomeModulo] = useState("");
   const [funcaoModulo, setFuncaoModulo] = useState("");
-  const [parametrosModulo, setParametrosModulo] = useState([{ nome: "", valor: "" }]);
+  const [parametrosModulo, setParametrosModulo] = useState<Record<string, string>>({ incluirInfo: "true" });
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState("");
   const [mensagemModulo, setMensagemModulo] = useState("");
@@ -110,40 +111,15 @@ function Configuracao() {
     setMensagem("Chave pessoal removida deste navegador.");
   }
 
-  function atualizarParametro(indice: number, campo: "nome" | "valor", valor: string) {
-    setParametrosModulo((atuais) =>
-      atuais.map((parametro, posicao) =>
-        posicao === indice ? { ...parametro, [campo]: valor } : parametro,
-      ),
-    );
-    setMensagemModulo("");
-  }
-
   function criarModulo(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMensagemModulo("");
-
-    const linhasPreenchidas = parametrosModulo.filter(
-      (parametro) => parametro.nome.trim() || parametro.valor,
-    );
-    if (linhasPreenchidas.some((parametro) => !parametro.nome.trim())) {
-      setMensagemModulo("Informe o nome de cada parâmetro preenchido.");
-      return;
-    }
-
-    const nomes = linhasPreenchidas.map((parametro) => parametro.nome.trim().toLowerCase());
-    if (new Set(nomes).size !== nomes.length) {
-      setMensagemModulo("Cada parâmetro precisa ter um nome único.");
-      return;
-    }
 
     const validacao = ModuloPersonalizadoSchema.safeParse({
       id: crypto.randomUUID(),
       nome: nomeModulo,
       funcao: funcaoModulo,
-      parametros: Object.fromEntries(
-        linhasPreenchidas.map(({ nome, valor }) => [nome.trim(), valor]),
-      ),
+      parametros: parametrosModulo,
     });
     if (!validacao.success) {
       setMensagemModulo("Confira o nome, a função e os nomes dos parâmetros informados.");
@@ -154,7 +130,7 @@ function Configuracao() {
     setModulos(listarModulosPersonalizados());
     setNomeModulo("");
     setFuncaoModulo("");
-    setParametrosModulo([{ nome: "", valor: "" }]);
+    setParametrosModulo({ incluirInfo: "true" });
     setMensagemModulo("Módulo criado e adicionado à navegação.");
   }
 
@@ -232,48 +208,13 @@ function Configuracao() {
               required
               onChange={(valor) => atualizarCampo("funcao", valor)}
             />
-            <Campo
-              id="ordem"
-              label="Ordem"
-              placeholder="Opcional"
-              value={configuracao.ordem}
-              onChange={(valor) => atualizarCampo("ordem", valor)}
-            />
-            <Campo
-              id="statusOrdem"
-              label="Status da ordem"
-              placeholder="Formato aceito pela API"
-              value={configuracao.statusOrdem}
-              onChange={(valor) => atualizarCampo("statusOrdem", valor)}
-            />
-            <Campo
-              id="tipoOrdem"
-              label="Tipos de ordem"
-              placeholder="Formato aceito pela API"
-              value={configuracao.tipoOrdem}
-              onChange={(valor) => atualizarCampo("tipoOrdem", valor)}
-            />
-            <Campo
-              id="pagina"
-              label="Página"
-              placeholder="Opcional"
-              value={configuracao.pagina}
-              onChange={(valor) => atualizarCampo("pagina", valor)}
-            />
-            <Campo
-              id="quantidadeRegistros"
-              label="Quantidade de registros"
-              placeholder="Opcional"
-              value={configuracao.quantidadeRegistros}
-              onChange={(valor) => atualizarCampo("quantidadeRegistros", valor)}
-            />
-            <Campo
-              id="ordenacao"
-              label="Ordenação"
-              placeholder="Opcional"
-              value={configuracao.ordenacao}
-              onChange={(valor) => atualizarCampo("ordenacao", valor)}
-            />
+            <div className="sm:col-span-2 lg:col-span-3">
+              <ParametrosEshipEditor
+                idPrefix="consulta-geral"
+                valores={configuracao.parametros}
+                onChange={(parametros) => atualizarCampo("parametros", parametros)}
+              />
+            </div>
           </div>
           <div className="flex flex-col gap-3 border-t border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="max-w-2xl text-sm text-muted-foreground">
@@ -322,57 +263,12 @@ function Configuracao() {
               </div>
             </div>
 
-            <div className="border-t border-border px-5 py-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  Parâmetros
-                </h3>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setParametrosModulo((atuais) => [...atuais, { nome: "", valor: "" }])
-                  }
-                >
-                  <Plus />
-                  Adicionar parâmetro
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {parametrosModulo.map((parametro, indice) => (
-                  <div key={indice} className="grid gap-3 sm:grid-cols-[1fr_2fr_auto]">
-                    <Input
-                      aria-label={`Nome do parâmetro ${indice + 1}`}
-                      value={parametro.nome}
-                      maxLength={60}
-                      placeholder="Nome"
-                      onChange={(event) => atualizarParametro(indice, "nome", event.target.value)}
-                    />
-                    <Input
-                      aria-label={`Valor do parâmetro ${indice + 1}`}
-                      value={parametro.valor}
-                      maxLength={500}
-                      placeholder="Valor"
-                      onChange={(event) => atualizarParametro(indice, "valor", event.target.value)}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Remover parâmetro ${indice + 1}`}
-                      disabled={parametrosModulo.length === 1}
-                      onClick={() =>
-                        setParametrosModulo((atuais) =>
-                          atuais.filter((_, posicao) => posicao !== indice),
-                        )
-                      }
-                    >
-                      <Trash2 />
-                    </Button>
-                  </div>
-                ))}
-              </div>
+            <div className="border-t border-border p-5">
+              <ParametrosEshipEditor
+                idPrefix="novo-modulo"
+                valores={parametrosModulo}
+                onChange={setParametrosModulo}
+              />
             </div>
 
             <div className="flex flex-col gap-3 border-t border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">

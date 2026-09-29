@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const parametrosSchema = z
-  .record(z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,59}$/), z.string().max(500))
+  .record(z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_]{0,59}$/), z.string().max(500))
   .superRefine((parametros, contexto) => {
     for (const nome of Object.keys(parametros)) {
       if (["api", "funcao"].includes(nome.toLowerCase())) {
@@ -12,7 +12,8 @@ const parametrosSchema = z
         });
       }
     }
-  });
+  })
+  .transform((parametros) => ({ incluirInfo: "true", ...parametros }));
 
 export const ConfiguracaoConsultaModuloSchema = z.object({
   funcao: z.string().trim().min(1).max(120),
@@ -30,12 +31,7 @@ export type ConsultaEship = z.infer<typeof ConsultaEshipSchema>;
 export const ConfiguracaoWmsSchema = z.object({
   funcao: z.string().trim().min(1).max(120),
   apiKey: z.string().max(500).default(""),
-  ordem: z.string().trim().max(120),
-  statusOrdem: z.string().trim().max(120),
-  tipoOrdem: z.string().trim().max(120),
-  pagina: z.string().trim().max(20),
-  quantidadeRegistros: z.string().trim().max(20),
-  ordenacao: z.string().trim().max(20),
+  parametros: parametrosSchema.default({}),
 });
 
 export type ConfiguracaoWms = z.infer<typeof ConfiguracaoWmsSchema>;
@@ -50,23 +46,20 @@ export type ModuloPersonalizado = z.infer<typeof ModuloPersonalizadoSchema>;
 export const CONFIGURACAO_WMS_PADRAO: ConfiguracaoWms = {
   funcao: "webServiceGetInfosOrdem",
   apiKey: "",
-  ordem: "",
-  statusOrdem: "[4]",
-  tipoOrdem: "[12,10,20,14,4,13,6,2]",
-  pagina: "1",
-  quantidadeRegistros: "100",
-  ordenacao: "2",
+  parametros: {
+    incluirInfo: "true",
+    statusOrdem: "[4]",
+    tipoOrdem: "[12,10,20,14,4,13,6,2]",
+    pagina: "1",
+    quantidadeRegistros: "100",
+    ordenacao: "2",
+  },
 };
 
 export const CONFIGURACAO_WMS_VAZIA: ConfiguracaoWms = {
   funcao: "",
   apiKey: "",
-  ordem: "",
-  statusOrdem: "",
-  tipoOrdem: "",
-  pagina: "",
-  quantidadeRegistros: "",
-  ordenacao: "",
+  parametros: { incluirInfo: "true" },
 };
 
 const CHAVE_STORAGE = "wms-painel:configuracao-api";
@@ -82,7 +75,20 @@ export function lerConfiguracaoWms(): ConfiguracaoWms | null {
   try {
     const valor = window.localStorage.getItem(CHAVE_STORAGE);
     if (!valor) return null;
-    const resultado = ConfiguracaoWmsSchema.safeParse(JSON.parse(valor));
+    const armazenada = JSON.parse(valor) as Record<string, unknown>;
+    const dados =
+      "parametros" in armazenada
+        ? armazenada
+        : {
+            funcao: armazenada.funcao,
+            apiKey: armazenada.apiKey,
+            parametros: Object.fromEntries(
+              Object.entries(armazenada).filter(
+                ([chave, item]) => chave !== "funcao" && chave !== "apiKey" && typeof item === "string" && item,
+              ),
+            ),
+          };
+    const resultado = ConfiguracaoWmsSchema.safeParse(dados);
     return resultado.success ? resultado.data : null;
   } catch {
     return null;
@@ -155,11 +161,11 @@ export function assinarModulosPersonalizados(callback: () => void): () => void {
 }
 
 export function consultaDaConfiguracao(configuracao: ConfiguracaoWms): ConsultaEship {
-  const { funcao, apiKey, ...campos } = configuracao;
-  const parametros = Object.fromEntries(
-    Object.entries(campos).filter(([, valor]) => valor.trim()),
-  );
-  return ConsultaEshipSchema.parse({ funcao, parametros, apiKey });
+  return ConsultaEshipSchema.parse({
+    funcao: configuracao.funcao,
+    apiKey: configuracao.apiKey,
+    parametros: configuracao.parametros,
+  });
 }
 
 export function lerConfiguracaoConsultaModulo(

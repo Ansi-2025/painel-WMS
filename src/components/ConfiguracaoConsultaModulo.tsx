@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from "react";
-import { Plus, Settings2, Trash2 } from "lucide-react";
+import { Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ParametrosEshipEditor } from "@/components/ParametrosEshipEditor";
 import {
   Dialog,
   DialogContent,
@@ -15,8 +16,6 @@ import {
   ConfiguracaoConsultaModuloSchema,
   type ConfiguracaoConsultaModulo,
 } from "@/lib/wms-config";
-
-type LinhaParametro = { id: string; nome: string; valor: string };
 
 export function ConfiguracaoConsultaModulo({
   titulo,
@@ -35,52 +34,23 @@ export function ConfiguracaoConsultaModulo({
 }) {
   const [aberta, setAberta] = useState(false);
   const [funcao, setFuncao] = useState(configuracao.funcao);
-  const [parametros, setParametros] = useState<LinhaParametro[]>([]);
+  const [parametros, setParametros] = useState(configuracao.parametros);
   const [erro, setErro] = useState("");
 
   function abrir() {
     setFuncao(configuracao.funcao);
-    setParametros(
-      Object.entries(configuracao.parametros).map(([nome, valor], indice) => ({
-        id: `parametro-${indice}`,
-        nome,
-        valor,
-      })),
-    );
+    setParametros(configuracao.parametros);
     setErro("");
     setAberta(true);
-  }
-
-  function atualizarParametro(id: string, campo: "nome" | "valor", valor: string) {
-    setParametros((atuais) =>
-      atuais.map((parametro) =>
-        parametro.id === id ? { ...parametro, [campo]: valor } : parametro,
-      ),
-    );
-    setErro("");
   }
 
   function salvar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErro("");
 
-    const preenchidos = parametros.filter((parametro) => parametro.nome.trim() || parametro.valor);
-    if (preenchidos.some((parametro) => !parametro.nome.trim())) {
-      setErro("Informe o nome de cada parâmetro preenchido.");
-      return;
-    }
-
-    const nomes = preenchidos.map((parametro) => parametro.nome.trim().toLowerCase());
-    if (new Set(nomes).size !== nomes.length) {
-      setErro("Cada parâmetro precisa ter um nome único.");
-      return;
-    }
-
     const validacao = ConfiguracaoConsultaModuloSchema.safeParse({
       funcao,
-      parametros: Object.fromEntries(
-        preenchidos.map(({ nome, valor }) => [nome.trim(), valor]),
-      ),
+      parametros,
     });
     if (!validacao.success) {
       setErro("Confira a função e os nomes dos parâmetros. api e funcao são reservados.");
@@ -131,59 +101,11 @@ export function ConfiguracaoConsultaModulo({
             />
           </div>
 
-          <section className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Parâmetros
-              </h3>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setParametros((atuais) => [
-                    ...atuais,
-                    { id: crypto.randomUUID(), nome: "", valor: "" },
-                  ])
-                }
-              >
-                <Plus />
-                Adicionar
-              </Button>
-            </div>
-
-            <div className="space-y-3">
-              {parametros.map((parametro, indice) => (
-                <div key={parametro.id} className="grid gap-3 sm:grid-cols-[1fr_2fr_auto]">
-                  <Input
-                    aria-label={`Nome do parâmetro ${indice + 1}`}
-                    value={parametro.nome}
-                    maxLength={60}
-                    placeholder="Nome"
-                    onChange={(event) => atualizarParametro(parametro.id, "nome", event.target.value)}
-                  />
-                  <Input
-                    aria-label={`Valor do parâmetro ${indice + 1}`}
-                    value={parametro.valor}
-                    maxLength={500}
-                    placeholder="Valor"
-                    onChange={(event) => atualizarParametro(parametro.id, "valor", event.target.value)}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Remover parâmetro ${indice + 1}`}
-                    onClick={() =>
-                      setParametros((atuais) => atuais.filter((linha) => linha.id !== parametro.id))
-                    }
-                  >
-                    <Trash2 />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </section>
+          <ParametrosEshipEditor
+            idPrefix={`consulta-${titulo.toLowerCase().replace(/\s+/g, "-")}`}
+            valores={parametros}
+            onChange={setParametros}
+          />
 
           {erro && (
             <p role="alert" className="text-sm font-medium text-destructive">
