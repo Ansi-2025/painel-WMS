@@ -14,9 +14,14 @@ const parametrosSchema = z
     }
   });
 
-export const ConsultaEshipSchema = z.object({
+export const ConfiguracaoConsultaModuloSchema = z.object({
   funcao: z.string().trim().min(1).max(120),
   parametros: parametrosSchema,
+});
+
+export type ConfiguracaoConsultaModulo = z.infer<typeof ConfiguracaoConsultaModuloSchema>;
+
+export const ConsultaEshipSchema = ConfiguracaoConsultaModuloSchema.extend({
   apiKey: z.string().max(500).optional(),
 });
 
@@ -66,8 +71,10 @@ export const CONFIGURACAO_WMS_VAZIA: ConfiguracaoWms = {
 
 const CHAVE_STORAGE = "wms-painel:configuracao-api";
 const CHAVE_MODULOS = "wms-painel:modulos-personalizados";
+const CHAVE_CONSULTAS_DASHBOARDS = "wms-painel:consultas-dashboards";
 const EVENTO_MODULOS = "wms-painel:modulos-personalizados-alterados";
 const EVENTO_CONFIGURACAO = "wms-painel:configuracao-alterada";
+const EVENTO_CONSULTA_DASHBOARD = "wms-painel:consulta-dashboard-alterada";
 
 export function lerConfiguracaoWms(): ConfiguracaoWms | null {
   if (typeof window === "undefined") return null;
@@ -153,4 +160,73 @@ export function consultaDaConfiguracao(configuracao: ConfiguracaoWms): ConsultaE
     Object.entries(campos).filter(([, valor]) => valor.trim()),
   );
   return ConsultaEshipSchema.parse({ funcao, parametros, apiKey });
+}
+
+export function lerConfiguracaoConsultaModulo(
+  id: string,
+): ConfiguracaoConsultaModulo | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const salvo = window.localStorage.getItem(CHAVE_CONSULTAS_DASHBOARDS);
+    if (!salvo) return null;
+    const consultas = JSON.parse(salvo) as Record<string, unknown>;
+    const resultado = ConfiguracaoConsultaModuloSchema.safeParse(consultas[id]);
+    return resultado.success ? resultado.data : null;
+  } catch {
+    return null;
+  }
+}
+
+export function salvarConfiguracaoConsultaModulo(
+  id: string,
+  configuracao: ConfiguracaoConsultaModulo,
+): void {
+  const validada = ConfiguracaoConsultaModuloSchema.parse(configuracao);
+  let consultas: Record<string, unknown> = {};
+  try {
+    const salvo = window.localStorage.getItem(CHAVE_CONSULTAS_DASHBOARDS);
+    if (salvo) consultas = JSON.parse(salvo) as Record<string, unknown>;
+  } catch {
+    consultas = {};
+  }
+  window.localStorage.setItem(
+    CHAVE_CONSULTAS_DASHBOARDS,
+    JSON.stringify({ ...consultas, [id]: validada }),
+  );
+  window.dispatchEvent(new CustomEvent(EVENTO_CONSULTA_DASHBOARD, { detail: id }));
+}
+
+export function removerConfiguracaoConsultaModulo(id: string): void {
+  let consultas: Record<string, unknown> = {};
+  try {
+    const salvo = window.localStorage.getItem(CHAVE_CONSULTAS_DASHBOARDS);
+    if (salvo) consultas = JSON.parse(salvo) as Record<string, unknown>;
+  } catch {
+    consultas = {};
+  }
+  delete consultas[id];
+  window.localStorage.setItem(CHAVE_CONSULTAS_DASHBOARDS, JSON.stringify(consultas));
+  window.dispatchEvent(new CustomEvent(EVENTO_CONSULTA_DASHBOARD, { detail: id }));
+}
+
+export function assinarConfiguracaoConsultaModulo(
+  id: string,
+  callback: () => void,
+): () => void {
+  if (typeof window === "undefined") return () => {};
+
+  const atualizarNesteNavegador = (event: Event) => {
+    if (event instanceof CustomEvent && event.detail === id) callback();
+  };
+  const atualizarEmOutraAba = (event: StorageEvent) => {
+    if (event.key === CHAVE_CONSULTAS_DASHBOARDS) callback();
+  };
+
+  window.addEventListener(EVENTO_CONSULTA_DASHBOARD, atualizarNesteNavegador);
+  window.addEventListener("storage", atualizarEmOutraAba);
+  return () => {
+    window.removeEventListener(EVENTO_CONSULTA_DASHBOARD, atualizarNesteNavegador);
+    window.removeEventListener("storage", atualizarEmOutraAba);
+  };
 }

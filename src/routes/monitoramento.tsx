@@ -26,6 +26,7 @@ function Monitoramento() {
       titulo="MONITORAMENTO"
       subtitulo="Monitoramento em tempo real da operação"
       consultar={consultarMonitoramento}
+      configuracaoId="monitoramento"
     />
   );
 }

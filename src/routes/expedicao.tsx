@@ -26,6 +26,7 @@ function Expedicao() {
       titulo="EXPEDIÇÃO"
       subtitulo="Acompanhamento em tempo real da expedição"
       consultar={consultarExpedicao}
+      configuracaoId="expedicao"
     />
   );
 }

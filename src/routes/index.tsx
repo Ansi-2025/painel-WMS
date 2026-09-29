@@ -28,6 +28,7 @@ function Painel() {
       titulo="PAINEL OPERACIONAL WMS"
       subtitulo="Acompanhamento em tempo real da operação"
       consultar={consultarWms}
+      configuracaoId="painel-operacional"
     />
   );
 }

@@ -26,6 +26,7 @@ function Indicadores() {
       titulo="INDICADORES"
       subtitulo="Indicadores em tempo real da operação"
       consultar={consultarIndicadores}
+      configuracaoId="indicadores"
     />
   );
 }

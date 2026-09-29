@@ -26,6 +26,7 @@ function Estoque() {
       titulo="ESTOQUE"
       subtitulo="Acompanhamento em tempo real do estoque"
       consultar={consultarEstoque}
+      configuracaoId="estoque"
     />
   );
 }

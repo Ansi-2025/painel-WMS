@@ -42,6 +42,7 @@ function ModuloDinamico() {
       titulo={modulo.nome.toUpperCase()}
       subtitulo="Consulta configurada para este módulo"
       consultar={consultarFuncao}
+      configuracaoId={`personalizado:${modulo.id}`}
       configuracaoConsulta={{ funcao: modulo.funcao, parametros: modulo.parametros }}
     />
   );

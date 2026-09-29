@@ -1,6 +1,7 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BarraModulos } from "@/components/BarraModulos";
+import { ConfiguracaoConsultaModulo } from "@/components/ConfiguracaoConsultaModulo";
 import {
   filaMedia,
   filaTotal,
@@ -17,9 +18,14 @@ import {
 } from "@/lib/wms-api";
 import {
   CONFIGURACAO_WMS_PADRAO,
+  assinarConfiguracaoConsultaModulo,
   assinarConfiguracaoWms,
   consultaDaConfiguracao,
+  lerConfiguracaoConsultaModulo,
   lerConfiguracaoWms,
+  removerConfiguracaoConsultaModulo,
+  salvarConfiguracaoConsultaModulo,
+  type ConfiguracaoConsultaModulo as ConsultaModulo,
   type ConsultaEship,
   type ConfiguracaoWms,
 } from "@/lib/wms-config";
@@ -32,40 +38,54 @@ export function PainelModulo({
   titulo,
   subtitulo,
   consultar,
+  configuracaoId,
   configuracaoConsulta,
 }: {
   titulo: string;
   subtitulo: string;
   consultar: ConsultaFn;
+  configuracaoId: string;
   configuracaoConsulta?: ConsultaEship;
 }) {
   const [ordens, setOrdens] = useState<OrdemWMS[]>([]);
   const [conectado, setConectado] = useState(true);
   const [atualizadoEm, setAtualizadoEm] = useState<string>("--:--:--");
   const [contador, setContador] = useState(INTERVALO_SEGUNDOS);
-  const [consulta, setConsulta] = useState(
-    () => {
-      const configuracao = lerConfiguracaoWms() ?? CONFIGURACAO_WMS_PADRAO;
-      return configuracaoConsulta
-        ? { ...configuracaoConsulta, apiKey: configuracao.apiKey }
-        : consultaDaConfiguracao(configuracao);
-    },
+  const [consulta, setConsulta] = useState(() => obterConsultaAtiva(configuracaoId, configuracaoConsulta));
+  const [consultaPersonalizada, setConsultaPersonalizada] = useState(
+    () => lerConfiguracaoConsultaModulo(configuracaoId) !== null,
   );
   const carregando = useRef(false);
   const consultarAPI = useServerFn(consultar);
 
   useEffect(() => {
     const atualizarConsulta = () => {
-      const configuracao = lerConfiguracaoWms() ?? CONFIGURACAO_WMS_PADRAO;
-      setConsulta((atual) =>
-        configuracaoConsulta
-          ? { ...configuracaoConsulta, apiKey: configuracao.apiKey }
-          : consultaDaConfiguracao(configuracao),
-      );
+      setConsulta(obterConsultaAtiva(configuracaoId, configuracaoConsulta));
+      setConsultaPersonalizada(lerConfiguracaoConsultaModulo(configuracaoId) !== null);
     };
 
-    return assinarConfiguracaoWms(atualizarConsulta);
-  }, [configuracaoConsulta]);
+    const cancelarConfiguracao = assinarConfiguracaoWms(atualizarConsulta);
+    const cancelarConsultaModulo = assinarConfiguracaoConsultaModulo(
+      configuracaoId,
+      atualizarConsulta,
+    );
+    return () => {
+      cancelarConfiguracao();
+      cancelarConsultaModulo();
+    };
+  }, [configuracaoId, configuracaoConsulta]);
+
+  function salvarConsultaModulo(novaConsulta: ConsultaModulo) {
+    salvarConfiguracaoConsultaModulo(configuracaoId, novaConsulta);
+    setConsultaPersonalizada(true);
+    setConsulta({ ...novaConsulta, apiKey: lerConfiguracaoWms()?.apiKey ?? "" });
+  }
+
+  function restaurarConsultaModulo() {
+    removerConfiguracaoConsultaModulo(configuracaoId);
+    setConsultaPersonalizada(false);
+    setConsulta(obterConsultaAtiva(configuracaoId, configuracaoConsulta));
+  }
 
   const atualizarDashboard = useCallback(async () => {
     if (carregando.current) return;
@@ -113,25 +133,37 @@ export function PainelModulo({
               {subtitulo}
             </p>
           </div>
-          <div className="flex flex-col gap-1 sm:items-end">
-            <span
-              className={
-                conectado
-                  ? "inline-flex items-center gap-2 rounded-sm border border-status-ok/40 bg-status-ok/10 px-3 py-1 text-sm font-semibold tracking-[0.15em] text-status-ok"
-                  : "inline-flex items-center gap-2 rounded-sm border border-destructive/40 bg-destructive/10 px-3 py-1 text-sm font-semibold tracking-[0.15em] text-destructive"
-              }
-            >
-              <span className="text-lg leading-none">●</span>
-              {conectado ? "CONECTADO" : "OFFLINE"}
-            </span>
-            <span className="text-xs tracking-[0.12em] text-muted-foreground lg:text-sm">
-              Última atualização: <span className="text-foreground">{atualizadoEm}</span>
-            </span>
-            {!conectado && (
-              <span className="text-xs font-semibold tracking-[0.12em] text-destructive">
-                Falha na comunicação com a API WMS
+          <div className="flex items-start gap-3 sm:items-center">
+            <div className="flex flex-col gap-1 sm:items-end">
+              <span
+                className={
+                  conectado
+                    ? "inline-flex items-center gap-2 rounded-sm border border-status-ok/40 bg-status-ok/10 px-3 py-1 text-sm font-semibold tracking-[0.15em] text-status-ok"
+                    : "inline-flex items-center gap-2 rounded-sm border border-destructive/40 bg-destructive/10 px-3 py-1 text-sm font-semibold tracking-[0.15em] text-destructive"
+                }
+              >
+                <span className="text-lg leading-none">●</span>
+                {conectado ? "CONECTADO" : "OFFLINE"}
               </span>
-            )}
+              <span className="text-xs tracking-[0.12em] text-muted-foreground lg:text-sm">
+                Última atualização: <span className="text-foreground">{atualizadoEm}</span>
+              </span>
+              {!conectado && (
+                <span className="text-xs font-semibold tracking-[0.12em] text-destructive">
+                  Falha na comunicação com a API WMS
+                </span>
+              )}
+            </div>
+            <ConfiguracaoConsultaModulo
+              titulo={titulo}
+              configuracao={{ funcao: consulta.funcao, parametros: consulta.parametros }}
+              personalizada={consultaPersonalizada}
+              textoRestaurar={
+                configuracaoConsulta ? "Restaurar definição original" : "Usar configuração geral"
+              }
+              aoSalvar={salvarConsultaModulo}
+              aoRestaurar={restaurarConsultaModulo}
+            />
           </div>
         </header>
 
@@ -240,6 +272,20 @@ export function PainelModulo({
       </div>
     </div>
   );
+}
+
+function obterConsultaAtiva(
+  configuracaoId: string,
+  configuracaoConsulta?: ConsultaEship,
+): ConsultaEship {
+  const configuracaoGeral = lerConfiguracaoWms() ?? CONFIGURACAO_WMS_PADRAO;
+  const configuracaoDoModulo = lerConfiguracaoConsultaModulo(configuracaoId);
+  const consultaBase = configuracaoDoModulo ??
+    (configuracaoConsulta
+      ? { funcao: configuracaoConsulta.funcao, parametros: configuracaoConsulta.parametros }
+      : consultaDaConfiguracao(configuracaoGeral));
+
+  return { ...consultaBase, apiKey: configuracaoGeral.apiKey };
 }
 
 function Card({
