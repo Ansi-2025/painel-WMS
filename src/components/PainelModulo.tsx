@@ -1,15 +1,15 @@
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { BarraModulos } from "@/components/BarraModulos";
 import { ConfiguracaoConsultaModulo } from "@/components/ConfiguracaoConsultaModulo";
 import {
-  filaMedia,
-  filaTotal,
+  agruparOrdensPorFila,
   formatarHora,
   formatarInteiro,
   formatarMoeda,
-  maiorFila,
   maiorValor,
+  nomeFila,
+  obterIdFila,
   paraNumero,
   totalInfosAdicionais,
   totalOrdens,
@@ -51,6 +51,17 @@ export function PainelModulo({
   const [conectado, setConectado] = useState(true);
   const [atualizadoEm, setAtualizadoEm] = useState<string>("--:--:--");
   const [contador, setContador] = useState(INTERVALO_SEGUNDOS);
+  const [layoutColunas, setLayoutColunas] = useState<1 | 2 | 3 | 4>(() => {
+    if (typeof window === "undefined") return 4;
+    const salvo = window.localStorage.getItem("wms-layout-colunas");
+    const valor = Number(salvo ?? "4");
+    return [1, 2, 3, 4].includes(valor) ? (valor as 1 | 2 | 3 | 4) : 4;
+  });
+  const [layoutFlexivel, setLayoutFlexivel] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    const salvo = window.localStorage.getItem("wms-layout-flexivel");
+    return salvo === null ? true : salvo === "true";
+  });
   const [consulta, setConsulta] = useState(() => obterConsultaAtiva(configuracaoId, configuracaoConsulta));
   const [consultaPersonalizada, setConsultaPersonalizada] = useState(
     () => lerConfiguracaoConsultaModulo(configuracaoId) !== null,
@@ -117,8 +128,30 @@ export function PainelModulo({
     return () => window.clearInterval(id);
   }, [atualizarDashboard]);
 
-  const pico = maiorFila(ordens);
-  const total = filaTotal(ordens);
+  useEffect(() => {
+    window.localStorage.setItem("wms-layout-colunas", String(layoutColunas));
+  }, [layoutColunas]);
+
+  useEffect(() => {
+    window.localStorage.setItem("wms-layout-flexivel", String(layoutFlexivel));
+  }, [layoutFlexivel]);
+
+  const filas = agruparOrdensPorFila(ordens);
+  const ordensComFila = filas.reduce((totalFilas, fila) => totalFilas + fila.quantidade, 0);
+  const filaMaisComum = filas[0];
+  const contagensFilas = new Map(filas.map((fila) => [fila.id, fila.quantidade]));
+  const classesGridCards = {
+    1: "grid-cols-1",
+    2: "grid-cols-1 md:grid-cols-2",
+    3: "grid-cols-1 md:grid-cols-2 xl:grid-cols-3",
+    4: "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4",
+  }[layoutColunas];
+  const classesGridResumo = {
+    1: "grid-cols-1",
+    2: "grid-cols-1 md:grid-cols-2",
+    3: "grid-cols-1 md:grid-cols-2 xl:grid-cols-3",
+    4: "grid-cols-1 md:grid-cols-2 xl:grid-cols-4",
+  }[layoutColunas];
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -154,20 +187,65 @@ export function PainelModulo({
                 </span>
               )}
             </div>
-            <ConfiguracaoConsultaModulo
-              titulo={titulo}
-              configuracao={{ funcao: consulta.funcao, parametros: consulta.parametros }}
-              personalizada={consultaPersonalizada}
-              textoRestaurar={
-                configuracaoConsulta ? "Restaurar definição original" : "Usar configuração geral"
-              }
-              aoSalvar={salvarConsultaModulo}
-              aoRestaurar={restaurarConsultaModulo}
-            />
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-2 rounded-xl border border-border bg-card/80 px-2 py-1.5 shadow-sm backdrop-blur-sm">
+                <span className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Layout
+                </span>
+
+                <div className="flex items-center gap-1 rounded-md border border-border bg-background p-1">
+                  {[1, 2, 3, 4].map((coluna) => (
+                    <button
+                      key={coluna}
+                      type="button"
+                      onClick={() => setLayoutColunas(coluna as 1 | 2 | 3 | 4)}
+                      className={[
+                        "min-w-8 rounded-sm px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors",
+                        layoutColunas === coluna
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      ].join(" ")}
+                      aria-pressed={layoutColunas === coluna}
+                      aria-label={`Usar ${coluna} colunas`}
+                    >
+                      {coluna}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setLayoutFlexivel((valor) => !valor)}
+                  className={[
+                    "rounded-md border px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] transition-colors",
+                    layoutFlexivel
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-border bg-background text-muted-foreground",
+                  ].join(" ")}
+                  aria-pressed={layoutFlexivel}
+                >
+                  {layoutFlexivel ? "Flex" : "Fixo"}
+                </button>
+              </div>
+              <ConfiguracaoConsultaModulo
+                titulo={titulo}
+                configuracao={{ funcao: consulta.funcao, parametros: consulta.parametros }}
+                personalizada={consultaPersonalizada}
+                textoRestaurar={
+                  configuracaoConsulta ? "Restaurar definição original" : "Usar configuração geral"
+                }
+                aoSalvar={salvarConsultaModulo}
+                aoRestaurar={restaurarConsultaModulo}
+              />
+            </div>
           </div>
         </header>
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 lg:gap-6">
+        <GridPersonalizado
+          cols={classesGridCards}
+          flexivel={layoutFlexivel}
+          className="lg:gap-6"
+        >
           <Card
             titulo="ORDENS"
             valor={formatarInteiro(totalOrdens(ordens))}
@@ -185,85 +263,26 @@ export function PainelModulo({
             compacto
           />
           <Card
-            titulo="FILA TOTAL"
-            valor={formatarInteiro(filaTotal(ordens))}
-            descricao="Soma da fila das ordens"
+            titulo="ORDENS COM FILA"
+            valor={formatarInteiro(ordensComFila)}
+            descricao="Ordens com uma fila atribuída"
           />
-        </section>
+        </GridPersonalizado>
 
-        <section className="grid flex-1 grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr] lg:gap-6">
-          <div className="panel flex flex-col overflow-hidden">
-            <h2 className="border-b border-border px-5 py-3 text-sm font-semibold tracking-[0.2em] text-muted-foreground">
-              ORDENS EM ACOMPANHAMENTO
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left">
-                <thead>
-                  <tr className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                    <th className="px-5 py-3 font-medium">Ordem</th>
-                    <th className="px-5 py-3 font-medium">Valor da Ordem</th>
-                    <th className="px-5 py-3 font-medium">Fila</th>
-                    <th className="px-5 py-3 font-medium">Distribuição da Fila</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ordens.map((o) => {
-                    const fila = paraNumero(o.infosAdicionais?.fila);
-                    const pctNum = total > 0 ? (fila / total) * 100 : 0;
-                    const pct = pctNum.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
-                    return (
-                      <tr key={o.codigo} className="border-t border-border">
-                        <td className="px-5 py-4 text-lg font-semibold tabular-nums lg:text-2xl">
-                          {o.ordem}
-                        </td>
-                        <td className="px-5 py-4 text-base tabular-nums text-foreground lg:text-xl">
-                          {formatarMoeda(paraNumero(o.infosAdicionais?.valordaordem))}
-                        </td>
-                        <td className="px-5 py-4 text-lg font-semibold tabular-nums text-primary lg:text-2xl">
-                          {formatarInteiro(fila)}
-                        </td>
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="h-3 w-full max-w-[320px] rounded-sm bg-muted">
-                              <div
-                                className="h-3 rounded-sm bg-primary"
-                                style={{ width: `${pctNum}%` }}
-                              />
-                            </div>
-                            <span className="w-12 shrink-0 text-sm tabular-nums text-muted-foreground">
-                              {pct}%
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {ordens.length === 0 && (
-                    <tr className="border-t border-border">
-                      <td
-                        colSpan={4}
-                        className="px-5 py-10 text-center text-sm text-muted-foreground"
-                      >
-                        Nenhuma ordem recebida.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="panel flex flex-col">
-            <h2 className="border-b border-border px-5 py-3 text-sm font-semibold tracking-[0.2em] text-muted-foreground">
-              RESUMO OPERACIONAL
-            </h2>
-            <div className="flex flex-1 flex-col divide-y divide-border">
-              <Resumo rotulo="Fila média por ordem" valor={formatarInteiro(filaMedia(ordens))} />
-              <Resumo rotulo="Maior fila" valor={formatarInteiro(pico)} />
-              <Resumo rotulo="Maior valor de ordem" valor={formatarMoeda(maiorValor(ordens))} />
-              <Resumo rotulo="Última atualização" valor={atualizadoEm} />
-            </div>
-          </div>
+        <section className="panel flex flex-col">
+          <h2 className="border-b border-border px-5 py-3 text-sm font-semibold tracking-[0.2em] text-muted-foreground">
+            RESUMO OPERACIONAL
+          </h2>
+          <GridPersonalizado cols={classesGridResumo} flexivel={layoutFlexivel}>
+            <Resumo rotulo="Filas distintas" valor={formatarInteiro(filas.length)} />
+            <Resumo rotulo="Fila mais comum" valor={filaMaisComum?.nome ?? "—"} compacto />
+            <Resumo
+              rotulo="Ordens nessa fila"
+              valor={formatarInteiro(filaMaisComum?.quantidade ?? 0)}
+            />
+            <Resumo rotulo="Maior valor de ordem" valor={formatarMoeda(maiorValor(ordens))} />
+            <Resumo rotulo="Última atualização" valor={atualizadoEm} />
+          </GridPersonalizado>
         </section>
 
         <footer className="panel px-5 py-3 text-center text-sm tracking-[0.14em] text-muted-foreground">
@@ -286,6 +305,33 @@ function obterConsultaAtiva(
       : consultaDaConfiguracao(configuracaoGeral));
 
   return { ...consultaBase, apiKey: configuracaoGeral.apiKey };
+}
+
+function GridPersonalizado({
+  children,
+  cols = "grid-cols-1",
+  flexivel = false,
+  className = "",
+}: {
+  children: ReactNode;
+  cols?: string;
+  flexivel?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      className={[
+        "grid gap-4",
+        cols,
+        flexivel ? "items-stretch" : "",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      {children}
+    </div>
+  );
 }
 
 function Card({
@@ -316,11 +362,27 @@ function Card({
   );
 }
 
-function Resumo({ rotulo, valor }: { rotulo: string; valor: string }) {
+function Resumo({
+  rotulo,
+  valor,
+  compacto = false,
+}: {
+  rotulo: string;
+  valor: string;
+  compacto?: boolean;
+}) {
   return (
     <div className="flex flex-1 flex-col justify-center px-5 py-4">
       <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{rotulo}</p>
-      <p className="mt-1 text-3xl font-bold tabular-nums text-foreground lg:text-4xl">{valor}</p>
+      <p
+        className={
+          compacto
+            ? "mt-1 break-words text-xl font-bold text-foreground lg:text-2xl"
+            : "mt-1 text-3xl font-bold tabular-nums text-foreground lg:text-4xl"
+        }
+      >
+        {valor}
+      </p>
     </div>
   );
 }
