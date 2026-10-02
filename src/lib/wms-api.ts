@@ -1,3 +1,5 @@
+import { PARAMETROS_ESHIP } from "@/lib/wms-parameters";
+
 /**
  * Camada de dados do Painel Operacional WMS.
  *
@@ -60,17 +62,38 @@ export function valorTotal(ordens: OrdemWMS[]): number {
   return ordens.reduce((s, o) => s + paraNumero(o.infosAdicionais?.valordaordem), 0);
 }
 
-export function filaTotal(ordens: OrdemWMS[]): number {
-  return ordens.reduce((s, o) => s + paraNumero(o.infosAdicionais?.fila), 0);
+export type FilaAgrupada = {
+  id: string;
+  nome: string;
+  quantidade: number;
+};
+
+const nomesFilas = new Map(
+  (PARAMETROS_ESHIP.find((parametro) => parametro.chave === "infoFila")?.opcoes ?? []).map(
+    ({ id, descricao }) => [id, descricao],
+  ),
+);
+
+export function obterIdFila(fila?: string): string {
+  return fila?.trim() ?? "";
 }
 
-export function filaMedia(ordens: OrdemWMS[]): number {
-  const qtd = ordens.length;
-  return qtd === 0 ? 0 : filaTotal(ordens) / qtd;
+export function nomeFila(fila?: string): string {
+  const id = obterIdFila(fila);
+  if (!id) return "Sem fila";
+  return nomesFilas.get(id) ?? `Fila ${id}`;
 }
 
-export function maiorFila(ordens: OrdemWMS[]): number {
-  return ordens.reduce((m, o) => Math.max(m, paraNumero(o.infosAdicionais?.fila)), 0);
+export function agruparOrdensPorFila(ordens: OrdemWMS[]): FilaAgrupada[] {
+  const contagens = new Map<string, number>();
+  for (const ordem of ordens) {
+    const id = obterIdFila(ordem.infosAdicionais?.fila);
+    if (id) contagens.set(id, (contagens.get(id) ?? 0) + 1);
+  }
+
+  return [...contagens.entries()]
+    .map(([id, quantidade]) => ({ id, nome: nomeFila(id), quantidade }))
+    .sort((a, b) => b.quantidade - a.quantidade || a.nome.localeCompare(b.nome, "pt-BR"));
 }
 
 export function maiorValor(ordens: OrdemWMS[]): number {
