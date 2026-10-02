@@ -1,7 +1,17 @@
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { BarraModulos } from "@/components/BarraModulos";
 import { ConfiguracaoConsultaModulo } from "@/components/ConfiguracaoConsultaModulo";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
   agruparOrdensPorFila,
   formatarHora,
@@ -31,6 +41,46 @@ import {
 } from "@/lib/wms-config";
 
 const INTERVALO_SEGUNDOS = 30;
+const CHAVE_CARTOES_PERSONALIZADOS = "wms-cartoes-personalizados";
+
+type IndicadorCartao =
+  | "ordens"
+  | "infosAdicionais"
+  | "valorTotal"
+  | "ordensComFila"
+  | "filasDistintas"
+  | "filaMaisComum"
+  | "ordensFilaMaisComum"
+  | "maiorValor";
+
+type CartaoPersonalizado = {
+  id: string;
+  titulo: string;
+  descricao: string;
+  indicador: IndicadorCartao;
+};
+
+const INDICADORES_CARTAO: { id: IndicadorCartao; nome: string }[] = [
+  { id: "ordens", nome: "Ordens retornadas" },
+  { id: "infosAdicionais", nome: "Informações adicionais" },
+  { id: "valorTotal", nome: "Valor total das ordens" },
+  { id: "ordensComFila", nome: "Ordens com fila" },
+  { id: "filasDistintas", nome: "Filas distintas" },
+  { id: "filaMaisComum", nome: "Fila mais comum" },
+  { id: "ordensFilaMaisComum", nome: "Ordens na fila mais comum" },
+  { id: "maiorValor", nome: "Maior valor de ordem" },
+];
+
+function validarCartaoPersonalizado(valor: unknown): valor is CartaoPersonalizado {
+  if (typeof valor !== "object" || valor === null) return false;
+  const cartao = valor as Partial<CartaoPersonalizado>;
+  return (
+    typeof cartao.id === "string" &&
+    typeof cartao.titulo === "string" &&
+    typeof cartao.descricao === "string" &&
+    INDICADORES_CARTAO.some((indicador) => indicador.id === cartao.indicador)
+  );
+}
 
 type ConsultaFn = (options: { data: ConsultaEship }) => Promise<{ ordens: OrdemWMS[] }>;
 
@@ -62,6 +112,12 @@ export function PainelModulo({
     const salvo = window.localStorage.getItem("wms-layout-flexivel");
     return salvo === null ? true : salvo === "true";
   });
+  const [cartoesPersonalizados, setCartoesPersonalizados] = useState<CartaoPersonalizado[]>([]);
+  const [cartoesCarregados, setCartoesCarregados] = useState(false);
+  const [dialogCartaoAberto, setDialogCartaoAberto] = useState(false);
+  const [indicadorNovoCartao, setIndicadorNovoCartao] = useState<IndicadorCartao>("ordens");
+  const [tituloNovoCartao, setTituloNovoCartao] = useState("");
+  const [descricaoNovoCartao, setDescricaoNovoCartao] = useState("");
   const [consulta, setConsulta] = useState(() => obterConsultaAtiva(configuracaoId, configuracaoConsulta));
   const [consultaPersonalizada, setConsultaPersonalizada] = useState(
     () => lerConfiguracaoConsultaModulo(configuracaoId) !== null,
@@ -136,9 +192,61 @@ export function PainelModulo({
     window.localStorage.setItem("wms-layout-flexivel", String(layoutFlexivel));
   }, [layoutFlexivel]);
 
+  useEffect(() => {
+    try {
+      const salvos: unknown = JSON.parse(
+        window.localStorage.getItem(CHAVE_CARTOES_PERSONALIZADOS) ?? "[]",
+      );
+      if (Array.isArray(salvos)) {
+        setCartoesPersonalizados(salvos.filter(validarCartaoPersonalizado));
+      }
+    } catch {
+      setCartoesPersonalizados([]);
+    }
+    setCartoesCarregados(true);
+  }, []);
+
+  useEffect(() => {
+    if (!cartoesCarregados) return;
+    window.localStorage.setItem(
+      CHAVE_CARTOES_PERSONALIZADOS,
+      JSON.stringify(cartoesPersonalizados),
+    );
+  }, [cartoesCarregados, cartoesPersonalizados]);
+
+  function criarCartao(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const titulo = tituloNovoCartao.trim();
+    if (!titulo) return;
+
+    setCartoesPersonalizados((atuais) => [
+      ...atuais,
+      {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        titulo,
+        descricao: descricaoNovoCartao.trim(),
+        indicador: indicadorNovoCartao,
+      },
+    ]);
+    setTituloNovoCartao("");
+    setDescricaoNovoCartao("");
+    setIndicadorNovoCartao("ordens");
+    setDialogCartaoAberto(false);
+  }
+
   const filas = agruparOrdensPorFila(ordens);
   const ordensComFila = filas.reduce((totalFilas, fila) => totalFilas + fila.quantidade, 0);
   const filaMaisComum = filas[0];
+  const valoresIndicadores: Record<IndicadorCartao, string> = {
+    ordens: formatarInteiro(totalOrdens(ordens)),
+    infosAdicionais: formatarInteiro(totalInfosAdicionais(ordens)),
+    valorTotal: formatarMoeda(valorTotal(ordens)),
+    ordensComFila: formatarInteiro(ordensComFila),
+    filasDistintas: formatarInteiro(filas.length),
+    filaMaisComum: filaMaisComum?.nome ?? "—",
+    ordensFilaMaisComum: formatarInteiro(filaMaisComum?.quantidade ?? 0),
+    maiorValor: formatarMoeda(maiorValor(ordens)),
+  };
   const contagensFilas = new Map(filas.map((fila) => [fila.id, fila.quantidade]));
   const classesGridCards = {
     1: "grid-cols-1",
@@ -237,9 +345,70 @@ export function PainelModulo({
                 aoSalvar={salvarConsultaModulo}
                 aoRestaurar={restaurarConsultaModulo}
               />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDialogCartaoAberto(true)}
+              >
+                <Plus aria-hidden="true" />
+                Novo cartão
+              </Button>
             </div>
           </div>
         </header>
+
+        <Dialog open={dialogCartaoAberto} onOpenChange={setDialogCartaoAberto}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Novo cartão personalizado</DialogTitle>
+            </DialogHeader>
+            <form className="space-y-4" onSubmit={criarCartao}>
+              <label className="block space-y-1.5 text-sm font-medium" htmlFor="cartao-titulo">
+                Título
+                <Input
+                  id="cartao-titulo"
+                  value={tituloNovoCartao}
+                  onChange={(event) => setTituloNovoCartao(event.target.value)}
+                  maxLength={40}
+                  required
+                />
+              </label>
+              <label className="block space-y-1.5 text-sm font-medium" htmlFor="cartao-indicador">
+                Indicador
+                <select
+                  id="cartao-indicador"
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                  value={indicadorNovoCartao}
+                  onChange={(event) =>
+                    setIndicadorNovoCartao(event.target.value as IndicadorCartao)
+                  }
+                >
+                  {INDICADORES_CARTAO.map((indicador) => (
+                    <option key={indicador.id} value={indicador.id}>
+                      {indicador.nome}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block space-y-1.5 text-sm font-medium" htmlFor="cartao-descricao">
+                Descrição
+                <Input
+                  id="cartao-descricao"
+                  value={descricaoNovoCartao}
+                  onChange={(event) => setDescricaoNovoCartao(event.target.value)}
+                  maxLength={80}
+                />
+              </label>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setDialogCartaoAberto(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit">Criar cartão</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         <GridPersonalizado
           cols={classesGridCards}
@@ -267,6 +436,18 @@ export function PainelModulo({
             valor={formatarInteiro(ordensComFila)}
             descricao="Ordens com uma fila atribuída"
           />
+          {cartoesPersonalizados.map((cartao) => (
+            <Card
+              key={cartao.id}
+              titulo={cartao.titulo}
+              valor={valoresIndicadores[cartao.indicador]}
+              descricao={cartao.descricao}
+              aoRemover={() =>
+                setCartoesPersonalizados((atuais) => atuais.filter((item) => item.id !== cartao.id))
+              }
+              compacto={cartao.indicador === "valorTotal" || cartao.indicador === "maiorValor"}
+            />
+          ))}
         </GridPersonalizado>
 
         <section className="panel flex flex-col">
@@ -339,14 +520,27 @@ function Card({
   valor,
   descricao,
   compacto,
+  aoRemover,
 }: {
   titulo: string;
   valor: string;
   descricao: string;
   compacto?: boolean;
+  aoRemover?: () => void;
 }) {
   return (
-    <div className="panel border-l-4 border-l-primary px-5 py-5">
+    <div className="panel relative border-l-4 border-l-primary px-5 py-5">
+      {aoRemover && (
+        <button
+          type="button"
+          onClick={aoRemover}
+          className="absolute right-3 top-3 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+          aria-label={`Remover cartão ${titulo}`}
+          title="Remover cartão"
+        >
+          <Trash2 className="size-4" aria-hidden="true" />
+        </button>
+      )}
       <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground">{titulo}</p>
       <p
         className={
