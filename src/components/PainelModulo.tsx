@@ -28,9 +28,11 @@ import {
 } from "@/lib/wms-api";
 import {
   CONFIGURACAO_WMS_PADRAO,
+  assinarApiAtiva,
   assinarConfiguracaoConsultaModulo,
   assinarConfiguracaoWms,
   consultaDaConfiguracao,
+  lerApiAtiva,
   lerConfiguracaoConsultaModulo,
   lerConfiguracaoWms,
   removerConfiguracaoConsultaModulo,
@@ -98,6 +100,8 @@ export function PainelModulo({
   configuracaoConsulta?: ConsultaEship;
 }) {
   const [ordens, setOrdens] = useState<OrdemWMS[]>([]);
+  const [apiAtiva, setApiAtiva] = useState(true);
+  const [preferenciaApiCarregada, setPreferenciaApiCarregada] = useState(false);
   const [conectado, setConectado] = useState(true);
   const [atualizadoEm, setAtualizadoEm] = useState<string>("--:--:--");
   const [contador, setContador] = useState(INTERVALO_SEGUNDOS);
@@ -126,6 +130,15 @@ export function PainelModulo({
   const consultarAPI = useServerFn(consultar);
 
   useEffect(() => {
+    const atualizar = () => {
+      setApiAtiva(lerApiAtiva());
+      setPreferenciaApiCarregada(true);
+    };
+    atualizar();
+    return assinarApiAtiva(atualizar);
+  }, []);
+
+  useEffect(() => {
     const atualizarConsulta = () => {
       setConsulta(obterConsultaAtiva(configuracaoId, configuracaoConsulta));
       setConsultaPersonalizada(lerConfiguracaoConsultaModulo(configuracaoId) !== null);
@@ -145,7 +158,7 @@ export function PainelModulo({
   function salvarConsultaModulo(novaConsulta: ConsultaModulo) {
     salvarConfiguracaoConsultaModulo(configuracaoId, novaConsulta);
     setConsultaPersonalizada(true);
-    setConsulta({ ...novaConsulta, apiKey: lerConfiguracaoWms()?.apiKey ?? "" });
+    setConsulta(novaConsulta);
   }
 
   function restaurarConsultaModulo() {
@@ -155,7 +168,7 @@ export function PainelModulo({
   }
 
   const atualizarDashboard = useCallback(async () => {
-    if (carregando.current) return;
+    if (!preferenciaApiCarregada || !apiAtiva || carregando.current) return;
     carregando.current = true;
     try {
       const dados = await consultarAPI({ data: consulta });
@@ -168,9 +181,14 @@ export function PainelModulo({
       carregando.current = false;
       setContador(INTERVALO_SEGUNDOS);
     }
-  }, [consultarAPI, consulta]);
+  }, [apiAtiva, consulta, consultarAPI, preferenciaApiCarregada]);
 
   useEffect(() => {
+    if (!preferenciaApiCarregada) return;
+    if (!apiAtiva) {
+      setContador(INTERVALO_SEGUNDOS);
+      return;
+    }
     void atualizarDashboard();
     const id = window.setInterval(() => {
       setContador((s) => {
@@ -182,7 +200,7 @@ export function PainelModulo({
       });
     }, 1000);
     return () => window.clearInterval(id);
-  }, [atualizarDashboard]);
+  }, [apiAtiva, atualizarDashboard, preferenciaApiCarregada]);
 
   useEffect(() => {
     window.localStorage.setItem("wms-layout-colunas", String(layoutColunas));
@@ -278,18 +296,20 @@ export function PainelModulo({
             <div className="flex flex-col gap-1 sm:items-end">
               <span
                 className={
-                  conectado
+                  !apiAtiva
+                    ? "inline-flex items-center gap-2 rounded-sm border border-border bg-muted px-3 py-1 text-sm font-semibold tracking-[0.15em] text-muted-foreground"
+                    : conectado
                     ? "inline-flex items-center gap-2 rounded-sm border border-status-ok/40 bg-status-ok/10 px-3 py-1 text-sm font-semibold tracking-[0.15em] text-status-ok"
                     : "inline-flex items-center gap-2 rounded-sm border border-destructive/40 bg-destructive/10 px-3 py-1 text-sm font-semibold tracking-[0.15em] text-destructive"
                 }
               >
                 <span className="text-lg leading-none">●</span>
-                {conectado ? "CONECTADO" : "OFFLINE"}
+                {!apiAtiva ? "API PAUSADA" : conectado ? "CONECTADO" : "OFFLINE"}
               </span>
               <span className="text-xs tracking-[0.12em] text-muted-foreground lg:text-sm">
                 Última atualização: <span className="text-foreground">{atualizadoEm}</span>
               </span>
-              {!conectado && (
+              {apiAtiva && !conectado && (
                 <span className="text-xs font-semibold tracking-[0.12em] text-destructive">
                   Falha na comunicação com a API WMS
                 </span>
@@ -467,7 +487,13 @@ export function PainelModulo({
         </section>
 
         <footer className="panel px-5 py-3 text-center text-sm tracking-[0.14em] text-muted-foreground">
-          Próxima atualização em <span className="text-foreground tabular-nums">{contador}s</span>
+          {apiAtiva ? (
+            <>
+              Próxima atualização em <span className="text-foreground tabular-nums">{contador}s</span>
+            </>
+          ) : (
+            "Consultas da API pausadas"
+          )}
         </footer>
       </div>
     </div>
@@ -485,7 +511,7 @@ function obterConsultaAtiva(
       ? { funcao: configuracaoConsulta.funcao, parametros: configuracaoConsulta.parametros }
       : consultaDaConfiguracao(configuracaoGeral));
 
-  return { ...consultaBase, apiKey: configuracaoGeral.apiKey };
+  return consultaBase;
 }
 
 function GridPersonalizado({

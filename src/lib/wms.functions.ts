@@ -5,13 +5,13 @@ import {
   type ConsultaEship,
 } from "./wms-config";
 
-// Proxy seguro: a chave ESHIP_API_KEY fica somente no servidor.
+// A chave ESHIP_API_KEY existe somente no ambiente do servidor.
 // Todos os módulos consomem o mesmo formato de dados; muda apenas a função da API.
 async function consultarEship(
   consulta: ConsultaEship,
 ): Promise<{ ordens: OrdemWMS[] }> {
-  const apiKey = consulta.apiKey?.trim() || process.env["ESHIP_API_KEY"];
-  if (!apiKey) throw new Error("Configuração ausente");
+  const apiKey = process.env["ESHIP_API_KEY"]?.trim();
+  if (!apiKey) throw new Error("ESHIP_API_KEY não configurada no servidor");
 
   const parametros = new URLSearchParams({ api: apiKey });
   parametros.set("funcao", consulta.funcao);

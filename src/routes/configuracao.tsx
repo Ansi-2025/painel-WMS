@@ -6,19 +6,22 @@ import { BarraModulos } from "@/components/BarraModulos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { ParametrosEshipEditor } from "@/components/ParametrosEshipEditor";
 import { consultarWms } from "@/lib/wms.functions";
 import {
   ConfiguracaoWmsSchema,
   CONFIGURACAO_WMS_VAZIA,
+  assinarApiAtiva,
   consultaDaConfiguracao,
+  lerApiAtiva,
   listarModulosPersonalizados,
   lerConfiguracaoWms,
   ModuloPersonalizadoSchema,
-  removerChaveApiWms,
   removerModuloPersonalizado,
   salvarModuloPersonalizado,
   salvarConfiguracaoWms,
+  salvarApiAtiva,
   type ModuloPersonalizado,
   type ConfiguracaoWms,
 } from "@/lib/wms-config";
@@ -38,8 +41,7 @@ export const Route = createFileRoute("/configuracao")({
 
 function Configuracao() {
   const [configuracao, setConfiguracao] = useState(CONFIGURACAO_WMS_VAZIA);
-  const [chaveApi, setChaveApi] = useState("");
-  const [chaveConfigurada, setChaveConfigurada] = useState(false);
+  const [apiAtiva, setApiAtiva] = useState(true);
   const [modulos, setModulos] = useState<ModuloPersonalizado[]>([]);
   const [nomeModulo, setNomeModulo] = useState("");
   const [funcaoModulo, setFuncaoModulo] = useState("");
@@ -51,20 +53,17 @@ function Configuracao() {
 
   useEffect(() => {
     const salva = lerConfiguracaoWms() ?? CONFIGURACAO_WMS_VAZIA;
-    setConfiguracao({ ...salva, apiKey: "" });
-    setChaveConfigurada(Boolean(salva.apiKey));
+    setConfiguracao(salva);
+    setApiAtiva(lerApiAtiva());
     setModulos(listarModulosPersonalizados());
+    return assinarApiAtiva(() => setApiAtiva(lerApiAtiva()));
   }, []);
 
   async function salvarEtestar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMensagem("");
 
-    const chaveParaSalvar = chaveApi.trim() || lerConfiguracaoWms()?.apiKey || "";
-    const validacao = ConfiguracaoWmsSchema.safeParse({
-      ...configuracao,
-      apiKey: chaveParaSalvar,
-    });
+    const validacao = ConfiguracaoWmsSchema.safeParse(configuracao);
     if (!validacao.success) {
       setMensagem("Informe a função da API antes de salvar.");
       return;
@@ -77,9 +76,7 @@ function Configuracao() {
       return;
     }
 
-    setConfiguracao({ ...validacao.data, apiKey: "" });
-    setChaveApi("");
-    setChaveConfigurada(Boolean(validacao.data.apiKey));
+    setConfiguracao(validacao.data);
     setSalvando(true);
     try {
       const resposta = await consultar({ data: consultaDaConfiguracao(validacao.data) });
@@ -90,8 +87,8 @@ function Configuracao() {
           ? error.message.replace(/([?&]api=)[^&\s]+/gi, "$1[oculta]").slice(0, 180)
           : "erro desconhecido";
       setMensagem(
-        detalhe === "Configuração ausente"
-          ? "Configuração salva. Informe a chave no campo acima ou configure ESHIP_API_KEY no servidor."
+        detalhe === "ESHIP_API_KEY não configurada no servidor"
+          ? "Configuração salva. Configure ESHIP_API_KEY nas variáveis de ambiente da Vercel e faça um novo deploy."
           : `Configuração salva, mas o teste falhou: ${detalhe}`,
       );
     } finally {
@@ -104,11 +101,9 @@ function Configuracao() {
     setMensagem("");
   }
 
-  function limparChaveApi() {
-    removerChaveApiWms();
-    setChaveConfigurada(false);
-    setChaveApi("");
-    setMensagem("Chave pessoal removida deste navegador.");
+  function atualizarEstadoApi(ativa: boolean) {
+    salvarApiAtiva(ativa);
+    setApiAtiva(ativa);
   }
 
   function criarModulo(event: FormEvent<HTMLFormElement>) {
@@ -159,8 +154,26 @@ function Configuracao() {
           <dl className="grid gap-px bg-border sm:grid-cols-2">
             <ConfigItem label="Método HTTP" valor="GET" />
             <ConfigItem label="Endpoint" valor="https://branco.eship.com.br/v3/" />
-            <ConfigItem label="Chave da API" valor="Opcional por navegador; substitui a chave do servidor" />
+            <ConfigItem label="Chave da API" valor="Variável de ambiente ESHIP_API_KEY no servidor" />
           </dl>
+          <div className="flex items-center justify-between gap-4 border-t border-border px-5 py-4">
+            <div>
+              <Label htmlFor="api-ativa" className="text-sm font-semibold">
+                Consultas automáticas da API
+              </Label>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {apiAtiva
+                  ? "Ativas neste navegador. Os módulos atualizam a cada 30 segundos."
+                  : "Pausadas neste navegador em todos os módulos."}
+              </p>
+            </div>
+            <Switch
+              id="api-ativa"
+              checked={apiAtiva}
+              onCheckedChange={atualizarEstadoApi}
+              aria-label={apiAtiva ? "Pausar consultas da API" : "Ativar consultas da API"}
+            />
+          </div>
         </section>
 
         <form onSubmit={(event) => void salvarEtestar(event)} className="panel overflow-hidden">
@@ -168,38 +181,6 @@ function Configuracao() {
             PARÂMETROS DA CONSULTA
           </h2>
           <div className="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-3">
-              <Label htmlFor="apiKey">Chave da API E-SHIP</Label>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Input
-                  id="apiKey"
-                  name="apiKey"
-                  type="password"
-                  autoComplete="new-password"
-                  maxLength={500}
-                  value={chaveApi}
-                  placeholder={
-                    chaveConfigurada
-                      ? "Chave pessoal configurada; digite para substituir"
-                      : "Cole sua chave pessoal (opcional)"
-                  }
-                  onChange={(event) => {
-                    setChaveApi(event.target.value);
-                    setMensagem("");
-                  }}
-                />
-                {chaveConfigurada && (
-                  <Button type="button" variant="outline" onClick={limparChaveApi}>
-                    <Trash2 />
-                    Remover chave
-                  </Button>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Salva neste navegador e enviada ao servidor apenas para consultar a E-SHIP. A
-                chave não é exibida novamente no campo.
-              </p>
-            </div>
             <Campo
               id="funcao"
               label="Função da API"
@@ -219,7 +200,7 @@ function Configuracao() {
           <div className="flex flex-col gap-3 border-t border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="max-w-2xl text-sm text-muted-foreground">
               As configurações salvas neste navegador serão usadas por todos os dashboards e
-              módulos personalizados. A chave pessoal substitui a chave padrão do servidor.
+              módulos personalizados. A credencial da API é mantida exclusivamente no servidor.
             </p>
             <Button type="submit" disabled={salvando}>
               <Save />
@@ -273,8 +254,8 @@ function Configuracao() {
 
             <div className="flex flex-col gap-3 border-t border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="max-w-2xl text-sm text-muted-foreground">
-                Cada módulo salva sua própria função e seus parâmetros neste navegador. A chave da
-                API pessoal configurada acima será usada nas consultas deste navegador.
+                Cada módulo salva sua própria função e seus parâmetros neste navegador. Todos usam
+                a variável ESHIP_API_KEY configurada no servidor.
               </p>
               <Button type="submit">
                 <Plus />

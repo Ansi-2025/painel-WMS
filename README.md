@@ -4,7 +4,7 @@ Dashboard operacional para consulta de ordens, expedição, estoque, indicadores
 
 Aplicação publicada em: https://painelwms.vercel.app
 
-## Development
+## Development  
 
 Requires Node.js and npm.
 
@@ -13,4 +13,4 @@ npm install --no-package-lock
 npm run dev
 ```
 
-The API key can be configured in the application's Configuração page for the current browser, or provided to the server as `ESHIP_API_KEY`.
+Configure `ESHIP_API_KEY` as a server-side environment variable. For local development, add it to an ignored `.env.local` file. On Vercel, add it under **Project Settings → Environment Variables** for the required environments, then redeploy. The key is never stored in browser storage or sent by the client.
