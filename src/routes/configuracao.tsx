@@ -88,7 +88,7 @@ function Configuracao() {
           : "erro desconhecido";
       setMensagem(
         detalhe === "ESHIP_API_KEY não configurada no servidor"
-          ? "Configuração salva. Configure ESHIP_API_KEY nas variáveis de ambiente da Vercel e faça um novo deploy."
+          ? "Configuração salva, mas não foi possível testar a conexão. Verifique a configuração do servidor."
           : `Configuração salva, mas o teste falhou: ${detalhe}`,
       );
     } finally {
@@ -154,7 +154,6 @@ function Configuracao() {
           <dl className="grid gap-px bg-border sm:grid-cols-2">
             <ConfigItem label="Método HTTP" valor="GET" />
             <ConfigItem label="Endpoint" valor="https://branco.eship.com.br/v3/" />
-            <ConfigItem label="Chave da API" valor="Variável de ambiente ESHIP_API_KEY no servidor" />
           </dl>
           <div className="flex items-center justify-between gap-4 border-t border-border px-5 py-4">
             <div>
@@ -200,7 +199,7 @@ function Configuracao() {
           <div className="flex flex-col gap-3 border-t border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="max-w-2xl text-sm text-muted-foreground">
               As configurações salvas neste navegador serão usadas por todos os dashboards e
-              módulos personalizados. A credencial da API é mantida exclusivamente no servidor.
+              módulos personalizados.
             </p>
             <Button type="submit" disabled={salvando}>
               <Save />
@@ -254,8 +253,7 @@ function Configuracao() {
 
             <div className="flex flex-col gap-3 border-t border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="max-w-2xl text-sm text-muted-foreground">
-                Cada módulo salva sua própria função e seus parâmetros neste navegador. Todos usam
-                a variável ESHIP_API_KEY configurada no servidor.
+                Cada módulo salva sua própria função e seus parâmetros neste navegador.
               </p>
               <Button type="submit">
                 <Plus />

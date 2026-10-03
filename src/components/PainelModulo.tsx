@@ -1,5 +1,13 @@
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronDown, ChevronUp, GripVertical, Plus, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Download,
+  GripVertical,
+  Plus,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -7,8 +15,8 @@ import {
   useState,
   type DragEvent,
   type FormEvent,
-  type ReactNode,
 } from "react";
+import { z } from "zod";
 import { BarraModulos } from "@/components/BarraModulos";
 import { ConfiguracaoConsultaModulo } from "@/components/ConfiguracaoConsultaModulo";
 import { Button } from "@/components/ui/button";
@@ -102,6 +110,69 @@ type CartaoPersonalizado = {
   indicador: IndicadorCartao;
 };
 
+const ConfiguracaoCartoesJsonSchema = z
+  .object({
+    formato: z.literal("painel-wms-cartoes"),
+    versao: z.literal(1),
+    exportadoEm: z.string(),
+    cartoes: z
+      .array(
+        z.object({
+          id: z.string().min(1).max(100),
+          titulo: z.string().trim().min(1).max(40),
+          descricao: z.string().max(80),
+          indicador: z.enum([
+            "ordens",
+            "infosAdicionais",
+            "valorTotal",
+            "ordensComFila",
+            "filasDistintas",
+            "filaMaisComum",
+            "ordensFilaMaisComum",
+            "maiorValor",
+          ]),
+        }),
+      )
+      .max(100),
+    layout: z.object({
+      colunas: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
+      flexivel: z.boolean(),
+      cartoes: z.record(
+        z.string(),
+        z.object({
+          largura: z.number().int().min(1).max(12),
+          altura: z.number().int().min(8).max(24),
+          ordem: z.number().finite(),
+        }),
+      ),
+    }),
+  })
+  .strict()
+  .superRefine((configuracao, contexto) => {
+    const ids = new Set<string>();
+    for (const cartao of configuracao.cartoes) {
+      if (ids.has(cartao.id)) {
+        contexto.addIssue({ code: "custom", message: "O arquivo contém cartões duplicados." });
+        return;
+      }
+      ids.add(cartao.id);
+    }
+
+    const layoutsPermitidos = new Set([
+      "ordens",
+      "infos-adicionais",
+      "valor-ordens",
+      "ordens-fila",
+      ...configuracao.cartoes.map((cartao) => `personalizado-${cartao.id}`),
+    ]);
+    for (const id of Object.keys(configuracao.layout.cartoes)) {
+      if (!layoutsPermitidos.has(id)) {
+        contexto.addIssue({ code: "custom", message: "O arquivo contém um layout desconhecido." });
+        return;
+      }
+    }
+  });
+
 const INDICADORES_CARTAO: { id: IndicadorCartao; nome: string }[] = [
   { id: "ordens", nome: "Ordens retornadas" },
   { id: "infosAdicionais", nome: "Informações adicionais" },
@@ -159,6 +230,8 @@ export function PainelModulo({
   const [modoMontagem, setModoMontagem] = useState(false);
   const [layoutCartoes, setLayoutCartoes] = useState<Record<string, LayoutCartao>>({});
   const [layoutCartoesCarregado, setLayoutCartoesCarregado] = useState(false);
+  const [mensagemCartoes, setMensagemCartoes] = useState("");
+  const entradaArquivoCartoes = useRef<HTMLInputElement>(null);
   const [cartoesPersonalizados, setCartoesPersonalizados] = useState<CartaoPersonalizado[]>([]);
   const [cartoesCarregados, setCartoesCarregados] = useState(false);
   const [dialogCartaoAberto, setDialogCartaoAberto] = useState(false);
@@ -315,6 +388,66 @@ export function PainelModulo({
     setDialogCartaoAberto(false);
   }
 
+  function exportarCartoes() {
+    const arquivo = {
+      formato: "painel-wms-cartoes",
+      versao: 1,
+      exportadoEm: new Date().toISOString(),
+      cartoes: cartoesPersonalizados,
+      layout: {
+        colunas: layoutColunas,
+        flexivel: layoutFlexivel,
+        cartoes: Object.fromEntries(
+          cartoesDashboard.map(({ id, largura, altura, ordem }) => [id, { largura, altura, ordem }]),
+        ),
+      },
+    };
+    const blob = new Blob([JSON.stringify(arquivo, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `painel-wms-cartoes-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
+  async function importarCartoes(arquivo: File) {
+    setMensagemCartoes("");
+    if (arquivo.size > 1_000_000) {
+      setMensagemCartoes("O arquivo excede o limite de 1 MB.");
+      return;
+    }
+
+    try {
+      const json: unknown = JSON.parse(await arquivo.text());
+      const validacao = ConfiguracaoCartoesJsonSchema.safeParse(json);
+      if (!validacao.success) {
+        setMensagemCartoes("Arquivo inválido ou incompatível com o formato de cartões WMS.");
+        return;
+      }
+
+      const existeConfiguracaoAtual =
+        cartoesPersonalizados.length > 0 || Object.keys(layoutCartoes).length > 0;
+      if (
+        existeConfiguracaoAtual &&
+        !window.confirm("A importação substituirá os cartões e o layout atuais. Deseja continuar?")
+      ) {
+        return;
+      }
+
+      setCartoesPersonalizados(validacao.data.cartoes);
+      setLayoutCartoes(validacao.data.layout.cartoes);
+      setLayoutColunas(validacao.data.layout.colunas);
+      setLayoutFlexivel(validacao.data.layout.flexivel);
+      const quantidade = validacao.data.cartoes.length;
+      setMensagemCartoes(
+        `Importação concluída: ${quantidade} ${quantidade === 1 ? "cartão personalizado" : "cartões personalizados"}.`,
+      );
+    } catch {
+      setMensagemCartoes("Não foi possível ler o arquivo JSON selecionado.");
+    }
+  }
+
   const filas = agruparOrdensPorFila(ordens);
   const ordensComFila = filas.reduce((totalFilas, fila) => totalFilas + fila.quantidade, 0);
   const filaMaisComum = filas[0];
@@ -374,13 +507,6 @@ export function PainelModulo({
       };
     })
     .sort((a, b) => a.ordem - b.ordem);
-  const contagensFilas = new Map(filas.map((fila) => [fila.id, fila.quantidade]));
-  const classesGridResumo = {
-    1: "grid-cols-1",
-    2: "grid-cols-1 md:grid-cols-2",
-    3: "grid-cols-1 md:grid-cols-2 xl:grid-cols-3",
-    4: "grid-cols-1 md:grid-cols-2 xl:grid-cols-4",
-  }[layoutColunas];
 
   function atualizarLayoutCartao(id: string, alteracoes: Partial<LayoutCartao>) {
     const cartao = cartoesDashboard.find((item) => item.id === id);
@@ -408,6 +534,7 @@ export function PainelModulo({
     if (indiceOrigem < 0 || indiceDestino < 0) return;
 
     const [movido] = reordenados.splice(indiceOrigem, 1);
+    if (!movido) return;
     reordenados.splice(indiceDestino, 0, movido);
     setLayoutCartoes((atuais) => {
       const novosLayouts = { ...atuais };
@@ -528,15 +655,51 @@ export function PainelModulo({
                 <GripVertical aria-hidden="true" />
                 {modoMontagem ? "Concluir edição" : "Montar painel"}
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setDialogCartaoAberto(true)}
-              >
-                <Plus aria-hidden="true" />
-                Novo cartão
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  title="Exportar configurações dos cartões"
+                  aria-label="Exportar configurações dos cartões"
+                  disabled={!cartoesCarregados || !layoutCartoesCarregado}
+                  onClick={exportarCartoes}
+                >
+                  <Download aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  title="Importar configurações dos cartões"
+                  aria-label="Importar configurações dos cartões"
+                  disabled={!cartoesCarregados || !layoutCartoesCarregado}
+                  onClick={() => entradaArquivoCartoes.current?.click()}
+                >
+                  <Upload aria-hidden="true" />
+                </Button>
+                <input
+                  ref={entradaArquivoCartoes}
+                  type="file"
+                  accept=".json,application/json"
+                  className="hidden"
+                  aria-label="Arquivo JSON de configurações dos cartões"
+                  onChange={(event) => {
+                    const arquivo = event.currentTarget.files?.[0];
+                    event.currentTarget.value = "";
+                    if (arquivo) void importarCartoes(arquivo);
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDialogCartaoAberto(true)}
+                >
+                  <Plus aria-hidden="true" />
+                  Novo cartão
+                </Button>
+              </div>
             </div>
           </div>
         </header>
@@ -593,6 +756,12 @@ export function PainelModulo({
           </DialogContent>
         </Dialog>
 
+        {mensagemCartoes && (
+          <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+            {mensagemCartoes}
+          </p>
+        )}
+
         <div
           className={[
             "dashboard-cards-grid gap-4 lg:gap-6",
@@ -637,22 +806,6 @@ export function PainelModulo({
           ))}
         </div>
 
-        <section className="panel flex flex-col">
-          <h2 className="border-b border-border px-5 py-3 text-sm font-semibold tracking-[0.2em] text-muted-foreground">
-            RESUMO OPERACIONAL
-          </h2>
-          <GridPersonalizado cols={classesGridResumo} flexivel={layoutFlexivel}>
-            <Resumo rotulo="Filas distintas" valor={formatarInteiro(filas.length)} />
-            <Resumo rotulo="Fila mais comum" valor={filaMaisComum?.nome ?? "—"} compacto />
-            <Resumo
-              rotulo="Ordens nessa fila"
-              valor={formatarInteiro(filaMaisComum?.quantidade ?? 0)}
-            />
-            <Resumo rotulo="Maior valor de ordem" valor={formatarMoeda(maiorValor(ordens))} />
-            <Resumo rotulo="Última atualização" valor={atualizadoEm} />
-          </GridPersonalizado>
-        </section>
-
         <footer className="panel px-5 py-3 text-center text-sm tracking-[0.14em] text-muted-foreground">
           {apiAtiva ? (
             <>
@@ -681,33 +834,6 @@ function obterConsultaAtiva(
   return consultaBase;
 }
 
-function GridPersonalizado({
-  children,
-  cols = "grid-cols-1",
-  flexivel = false,
-  className = "",
-}: {
-  children: ReactNode;
-  cols?: string;
-  flexivel?: boolean;
-  className?: string;
-}) {
-  return (
-    <div
-      className={[
-        "grid gap-4",
-        cols,
-        flexivel ? "items-stretch" : "",
-        className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
-    >
-      {children}
-    </div>
-  );
-}
-
 function Card({
   titulo,
   valor,
@@ -729,10 +855,10 @@ function Card({
   titulo: string;
   valor: string;
   descricao: string;
-  compacto?: boolean;
+  compacto?: boolean | undefined;
   largura: number;
   altura: number;
-  removivel?: boolean;
+  removivel?: boolean | undefined;
   emEdicao: boolean;
   podeMoverCima: boolean;
   podeMoverBaixo: boolean;
@@ -741,7 +867,7 @@ function Card({
   aoIniciarArrasto: (event: DragEvent<HTMLButtonElement>) => void;
   aoSoltar: () => void;
   aoFinalizarArrasto: () => void;
-  aoRemover?: () => void;
+  aoRemover?: (() => void) | undefined;
 }) {
   return (
     <div
@@ -858,27 +984,3 @@ function Card({
   );
 }
 
-function Resumo({
-  rotulo,
-  valor,
-  compacto = false,
-}: {
-  rotulo: string;
-  valor: string;
-  compacto?: boolean;
-}) {
-  return (
-    <div className="flex flex-1 flex-col justify-center px-5 py-4">
-      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{rotulo}</p>
-      <p
-        className={
-          compacto
-            ? "mt-1 break-words text-xl font-bold text-foreground lg:text-2xl"
-            : "mt-1 text-3xl font-bold tabular-nums text-foreground lg:text-4xl"
-        }
-      >
-        {valor}
-      </p>
-    </div>
-  );
-}
