@@ -1,6 +1,14 @@
 import { useServerFn } from "@tanstack/react-start";
-import { Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { ChevronDown, ChevronUp, GripVertical, Plus, Trash2 } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { BarraModulos } from "@/components/BarraModulos";
 import { ConfiguracaoConsultaModulo } from "@/components/ConfiguracaoConsultaModulo";
 import { Button } from "@/components/ui/button";
@@ -44,6 +52,38 @@ import {
 
 const INTERVALO_SEGUNDOS = 30;
 const CHAVE_CARTOES_PERSONALIZADOS = "wms-cartoes-personalizados";
+const CHAVE_LAYOUT_CARTOES = "wms-layout-cartoes";
+
+type LayoutCartao = {
+  largura: number;
+  altura: number;
+  ordem: number;
+};
+
+type DefinicaoCartao = {
+  id: string;
+  titulo: string;
+  valor: string;
+  descricao: string;
+  compacto?: boolean;
+  removivel?: boolean;
+};
+
+function validarLayoutCartao(valor: unknown): valor is LayoutCartao {
+  if (typeof valor !== "object" || valor === null) return false;
+  const layout = valor as Partial<LayoutCartao>;
+  return (
+    typeof layout.largura === "number" &&
+    Number.isInteger(layout.largura) &&
+    layout.largura >= 1 &&
+    layout.largura <= 12 &&
+    typeof layout.altura === "number" &&
+    Number.isInteger(layout.altura) &&
+    layout.altura >= 8 &&
+    layout.altura <= 24 &&
+    Number.isFinite(layout.ordem)
+  );
+}
 
 type IndicadorCartao =
   | "ordens"
@@ -116,6 +156,9 @@ export function PainelModulo({
     const salvo = window.localStorage.getItem("wms-layout-flexivel");
     return salvo === null ? true : salvo === "true";
   });
+  const [modoMontagem, setModoMontagem] = useState(false);
+  const [layoutCartoes, setLayoutCartoes] = useState<Record<string, LayoutCartao>>({});
+  const [layoutCartoesCarregado, setLayoutCartoesCarregado] = useState(false);
   const [cartoesPersonalizados, setCartoesPersonalizados] = useState<CartaoPersonalizado[]>([]);
   const [cartoesCarregados, setCartoesCarregados] = useState(false);
   const [dialogCartaoAberto, setDialogCartaoAberto] = useState(false);
@@ -127,6 +170,7 @@ export function PainelModulo({
     () => lerConfiguracaoConsultaModulo(configuracaoId) !== null,
   );
   const carregando = useRef(false);
+  const cartaoArrastado = useRef<string | null>(null);
   const consultarAPI = useServerFn(consultar);
 
   useEffect(() => {
@@ -212,6 +256,25 @@ export function PainelModulo({
 
   useEffect(() => {
     try {
+      const salvo: unknown = JSON.parse(window.localStorage.getItem(CHAVE_LAYOUT_CARTOES) ?? "{}");
+      if (typeof salvo === "object" && salvo !== null && !Array.isArray(salvo)) {
+        setLayoutCartoes(
+          Object.fromEntries(Object.entries(salvo).filter(([, valor]) => validarLayoutCartao(valor))),
+        );
+      }
+    } catch {
+      setLayoutCartoes({});
+    }
+    setLayoutCartoesCarregado(true);
+  }, []);
+
+  useEffect(() => {
+    if (!layoutCartoesCarregado) return;
+    window.localStorage.setItem(CHAVE_LAYOUT_CARTOES, JSON.stringify(layoutCartoes));
+  }, [layoutCartoes, layoutCartoesCarregado]);
+
+  useEffect(() => {
+    try {
       const salvos: unknown = JSON.parse(
         window.localStorage.getItem(CHAVE_CARTOES_PERSONALIZADOS) ?? "[]",
       );
@@ -265,19 +328,109 @@ export function PainelModulo({
     ordensFilaMaisComum: formatarInteiro(filaMaisComum?.quantidade ?? 0),
     maiorValor: formatarMoeda(maiorValor(ordens)),
   };
+  const definicoesCartoes: DefinicaoCartao[] = [
+    {
+      id: "ordens",
+      titulo: "ORDENS",
+      valor: valoresIndicadores.ordens,
+      descricao: "Ordens retornadas pela API",
+    },
+    {
+      id: "infos-adicionais",
+      titulo: "INFOS ADICIONAIS",
+      valor: valoresIndicadores.infosAdicionais,
+      descricao: "Registros com informações adicionais",
+    },
+    {
+      id: "valor-ordens",
+      titulo: "VALOR DAS ORDENS",
+      valor: valoresIndicadores.valorTotal,
+      descricao: "Valor total das ordens consultadas",
+      compacto: true,
+    },
+    {
+      id: "ordens-fila",
+      titulo: "ORDENS COM FILA",
+      valor: valoresIndicadores.ordensComFila,
+      descricao: "Ordens com uma fila atribuída",
+    },
+    ...cartoesPersonalizados.map((cartao) => ({
+      id: `personalizado-${cartao.id}`,
+      titulo: cartao.titulo,
+      valor: valoresIndicadores[cartao.indicador],
+      descricao: cartao.descricao,
+      compacto: cartao.indicador === "valorTotal" || cartao.indicador === "maiorValor",
+      removivel: true,
+    })),
+  ];
+  const cartoesDashboard = definicoesCartoes
+    .map((cartao, indice) => {
+      const layout = layoutCartoes[cartao.id];
+      return {
+        ...cartao,
+        largura: layout?.largura ?? 12 / layoutColunas,
+        altura: layout?.altura ?? 10,
+        ordem: layout?.ordem ?? indice,
+      };
+    })
+    .sort((a, b) => a.ordem - b.ordem);
   const contagensFilas = new Map(filas.map((fila) => [fila.id, fila.quantidade]));
-  const classesGridCards = {
-    1: "grid-cols-1",
-    2: "grid-cols-1 md:grid-cols-2",
-    3: "grid-cols-1 md:grid-cols-2 xl:grid-cols-3",
-    4: "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4",
-  }[layoutColunas];
   const classesGridResumo = {
     1: "grid-cols-1",
     2: "grid-cols-1 md:grid-cols-2",
     3: "grid-cols-1 md:grid-cols-2 xl:grid-cols-3",
     4: "grid-cols-1 md:grid-cols-2 xl:grid-cols-4",
   }[layoutColunas];
+
+  function atualizarLayoutCartao(id: string, alteracoes: Partial<LayoutCartao>) {
+    const cartao = cartoesDashboard.find((item) => item.id === id);
+    if (!cartao) return;
+
+    setLayoutCartoes((atuais) => ({
+      ...atuais,
+      [id]: {
+        largura: cartao.largura,
+        altura: cartao.altura,
+        ordem: cartao.ordem,
+        ...atuais[id],
+        ...alteracoes,
+      },
+    }));
+  }
+
+  function reordenarCartao(id: string) {
+    const origem = cartaoArrastado.current;
+    if (!origem || origem === id) return;
+
+    const reordenados = [...cartoesDashboard];
+    const indiceOrigem = reordenados.findIndex((cartao) => cartao.id === origem);
+    const indiceDestino = reordenados.findIndex((cartao) => cartao.id === id);
+    if (indiceOrigem < 0 || indiceDestino < 0) return;
+
+    const [movido] = reordenados.splice(indiceOrigem, 1);
+    reordenados.splice(indiceDestino, 0, movido);
+    setLayoutCartoes((atuais) => {
+      const novosLayouts = { ...atuais };
+      reordenados.forEach((cartao, ordem) => {
+        novosLayouts[cartao.id] = {
+          largura: cartao.largura,
+          altura: cartao.altura,
+          ...atuais[cartao.id],
+          ordem,
+        };
+      });
+      return novosLayouts;
+    });
+    cartaoArrastado.current = null;
+  }
+
+  function moverCartao(id: string, deslocamento: -1 | 1) {
+    const indice = cartoesDashboard.findIndex((cartao) => cartao.id === id);
+    const destino = cartoesDashboard[indice + deslocamento];
+    if (!destino) return;
+    cartaoArrastado.current = id;
+    reordenarCartao(destino.id);
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -292,8 +445,8 @@ export function PainelModulo({
               {subtitulo}
             </p>
           </div>
-          <div className="flex items-start gap-3 sm:items-center">
-            <div className="flex flex-col gap-1 sm:items-end">
+          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-col gap-1 sm:items-end">
               <span
                 className={
                   !apiAtiva
@@ -315,13 +468,13 @@ export function PainelModulo({
                 </span>
               )}
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="flex items-center gap-2 rounded-xl border border-border bg-card/80 px-2 py-1.5 shadow-sm backdrop-blur-sm">
+            <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
+              <div className="flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-border bg-card/80 px-2 py-1.5 shadow-sm backdrop-blur-sm">
                 <span className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   Layout
                 </span>
 
-                <div className="flex items-center gap-1 rounded-md border border-border bg-background p-1">
+                <div className="flex max-w-full flex-wrap items-center gap-1 rounded-md border border-border bg-background p-1">
                   {[1, 2, 3, 4].map((coluna) => (
                     <button
                       key={coluna}
@@ -365,6 +518,16 @@ export function PainelModulo({
                 aoSalvar={salvarConsultaModulo}
                 aoRestaurar={restaurarConsultaModulo}
               />
+              <Button
+                type="button"
+                variant={modoMontagem ? "secondary" : "outline"}
+                size="sm"
+                aria-pressed={modoMontagem}
+                onClick={() => setModoMontagem((ativo) => !ativo)}
+              >
+                <GripVertical aria-hidden="true" />
+                {modoMontagem ? "Concluir edição" : "Montar painel"}
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -430,45 +593,49 @@ export function PainelModulo({
           </DialogContent>
         </Dialog>
 
-        <GridPersonalizado
-          cols={classesGridCards}
-          flexivel={layoutFlexivel}
-          className="lg:gap-6"
+        <div
+          className={[
+            "dashboard-cards-grid gap-4 lg:gap-6",
+            layoutFlexivel ? "items-stretch" : "items-start",
+          ].join(" ")}
         >
-          <Card
-            titulo="ORDENS"
-            valor={formatarInteiro(totalOrdens(ordens))}
-            descricao="Ordens retornadas pela API"
-          />
-          <Card
-            titulo="INFOS ADICIONAIS"
-            valor={formatarInteiro(totalInfosAdicionais(ordens))}
-            descricao="Registros com informações adicionais"
-          />
-          <Card
-            titulo="VALOR DAS ORDENS"
-            valor={formatarMoeda(valorTotal(ordens))}
-            descricao="Valor total das ordens consultadas"
-            compacto
-          />
-          <Card
-            titulo="ORDENS COM FILA"
-            valor={formatarInteiro(ordensComFila)}
-            descricao="Ordens com uma fila atribuída"
-          />
-          {cartoesPersonalizados.map((cartao) => (
+          {cartoesDashboard.map((cartao, indice) => (
             <Card
               key={cartao.id}
+              largura={cartao.largura}
+              altura={cartao.altura}
               titulo={cartao.titulo}
-              valor={valoresIndicadores[cartao.indicador]}
+              valor={cartao.valor}
               descricao={cartao.descricao}
-              aoRemover={() =>
-                setCartoesPersonalizados((atuais) => atuais.filter((item) => item.id !== cartao.id))
+              compacto={cartao.compacto}
+              removivel={cartao.removivel}
+              emEdicao={modoMontagem}
+              podeMoverCima={indice > 0}
+              podeMoverBaixo={indice < cartoesDashboard.length - 1}
+              aoMover={(deslocamento) => moverCartao(cartao.id, deslocamento)}
+              aoAlterarTamanho={(largura, altura) =>
+                atualizarLayoutCartao(cartao.id, { largura, altura })
               }
-              compacto={cartao.indicador === "valorTotal" || cartao.indicador === "maiorValor"}
+              aoIniciarArrasto={(event) => {
+                cartaoArrastado.current = cartao.id;
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("text/plain", cartao.id);
+              }}
+              aoSoltar={() => reordenarCartao(cartao.id)}
+              aoFinalizarArrasto={() => {
+                cartaoArrastado.current = null;
+              }}
+              aoRemover={
+                cartao.removivel
+                  ? () =>
+                      setCartoesPersonalizados((atuais) =>
+                        atuais.filter((item) => `personalizado-${item.id}` !== cartao.id),
+                      )
+                  : undefined
+              }
             />
           ))}
-        </GridPersonalizado>
+        </div>
 
         <section className="panel flex flex-col">
           <h2 className="border-b border-border px-5 py-3 text-sm font-semibold tracking-[0.2em] text-muted-foreground">
@@ -546,17 +713,126 @@ function Card({
   valor,
   descricao,
   compacto,
+  largura,
+  altura,
+  removivel,
+  emEdicao,
+  podeMoverCima,
+  podeMoverBaixo,
+  aoMover,
+  aoAlterarTamanho,
+  aoIniciarArrasto,
+  aoSoltar,
+  aoFinalizarArrasto,
   aoRemover,
 }: {
   titulo: string;
   valor: string;
   descricao: string;
   compacto?: boolean;
+  largura: number;
+  altura: number;
+  removivel?: boolean;
+  emEdicao: boolean;
+  podeMoverCima: boolean;
+  podeMoverBaixo: boolean;
+  aoMover: (deslocamento: -1 | 1) => void;
+  aoAlterarTamanho: (largura: number, altura: number) => void;
+  aoIniciarArrasto: (event: DragEvent<HTMLButtonElement>) => void;
+  aoSoltar: () => void;
+  aoFinalizarArrasto: () => void;
   aoRemover?: () => void;
 }) {
   return (
-    <div className="panel relative border-l-4 border-l-primary px-5 py-5">
-      {aoRemover && (
+    <div
+      className={[
+        "panel dashboard-card relative border-l-4 border-l-primary px-5 py-5",
+        emEdicao ? "outline outline-1 outline-primary/40" : "",
+      ].join(" ")}
+      style={{ gridColumn: `span ${largura}`, gridRow: `span ${altura}` }}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => {
+        event.preventDefault();
+        aoSoltar();
+      }}
+    >
+      {emEdicao && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={!podeMoverCima}
+              onClick={() => aoMover(-1)}
+              className="rounded-sm p-1 text-muted-foreground hover:bg-muted disabled:opacity-40"
+              aria-label={`Mover cartão ${titulo} para cima`}
+              title="Mover para cima"
+            >
+              <ChevronUp className="size-4" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              disabled={!podeMoverBaixo}
+              onClick={() => aoMover(1)}
+              className="rounded-sm p-1 text-muted-foreground hover:bg-muted disabled:opacity-40"
+              aria-label={`Mover cartão ${titulo} para baixo`}
+              title="Mover para baixo"
+            >
+              <ChevronDown className="size-4" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              draggable
+              onDragStart={aoIniciarArrasto}
+              onDragEnd={aoFinalizarArrasto}
+              className="cursor-grab rounded-sm p-1 text-muted-foreground hover:bg-muted active:cursor-grabbing"
+              aria-label={`Arrastar cartão ${titulo}`}
+              title="Arrastar para reordenar"
+            >
+              <GripVertical className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1 text-[10px] font-semibold uppercase text-muted-foreground">
+              L
+              <input
+                type="number"
+                min={1}
+                max={12}
+                value={largura}
+                onChange={(event) =>
+                  aoAlterarTamanho(
+                    Math.min(12, Math.max(1, Number(event.target.value) || 1)),
+                    altura,
+                  )
+                }
+                className="h-7 w-12 rounded-sm border border-input bg-background px-1 text-center text-xs text-foreground"
+                aria-label={`Largura do cartão ${titulo} em unidades`}
+              />
+            </label>
+            <span className="text-xs text-muted-foreground" aria-hidden="true">
+              ×
+            </span>
+            <label className="flex items-center gap-1 text-[10px] font-semibold uppercase text-muted-foreground">
+              A
+              <input
+                type="number"
+                min={8}
+                max={24}
+                value={altura}
+                onChange={(event) =>
+                  aoAlterarTamanho(
+                    largura,
+                    Math.min(24, Math.max(8, Number(event.target.value) || 8)),
+                  )
+                }
+                className="h-7 w-12 rounded-sm border border-input bg-background px-1 text-center text-xs text-foreground"
+                aria-label={`Altura do cartão ${titulo} em unidades`}
+              />
+            </label>
+          </div>
+        </div>
+      )}
+      {removivel && aoRemover && (
         <button
           type="button"
           onClick={aoRemover}
