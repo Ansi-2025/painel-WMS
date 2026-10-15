@@ -37,9 +37,7 @@ export interface RespostaWMS {
 export function paraNumero(valor?: string): number {
   if (!valor) return 0;
   const texto = valor.trim();
-  const limpo = texto.includes(",")
-    ? texto.replace(/\./g, "").replace(",", ".")
-    : texto;
+  const limpo = texto.includes(",") ? texto.replace(/\./g, "").replace(",", ".") : texto;
   const n = Number(limpo);
   return Number.isFinite(n) ? n : 0;
 }
@@ -83,18 +81,63 @@ export function nomeFila(fila?: string): string {
   return nomesFilas.get(id) ?? "Fila não identificada";
 }
 
+function normalizarNomeFila(nome: string): string {
+  return nome
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+function nomeFamiliaFila(nome: string): string {
+  const chave = normalizarNomeFila(nome);
+  const familias: [RegExp, string][] = [
+    [/^ONDAATRASAD[AO]\d+$/, "ONDA ATRASADA"],
+    [/^ONDA\d+$/, "ONDA"],
+    [/^(?:PRODMISTO|PECAMIST[AO])ATRASAD[AO]\d+$/, "MISTO ATRASADO"],
+    [/^(?:PRODMISTO|PECAMIST[AO])\d+$/, "MISTO"],
+    [/^PECAATRASAD[AO]\d+$/, "PEÇA ATRASADA"],
+    [/^PECA\d+$/, "PEÇA"],
+    [/^LINHA\d+(?:T2)?$/, "LINHA"],
+    [/^COEX\d+$/, "COEX"],
+    [
+      /^(?:AMAZON|B2B|DIFAL|EXPORTACAO|GAZIN|GURGEL|LEROY|MKT|OBRAMAX)(?:PECA|PECAS|PROD|PRODUTO)$/,
+      "",
+    ],
+    [/^CLIENTERETIRA(?:PECA|PROD)$/, "RETIRADA CLIENTE"],
+    [/^SAC(?:PECA|PRODUCAO|PRODUTO)$/, "SAC"],
+    [/^SLOBSPARCIAL(?:ALMOX|EXPED)$/, "SLOB PARCIAL"],
+    [/^SLOBSTOTALALMOX$/, "SLOB TOTAL"],
+    [/^MADEIRA(?:PECA|PRODUTO)$/, "MADEIRA"],
+    [/^TECIDOS(?:PECA|PECAS|PROD)$/, "TECIDOS"],
+    [/^TRANSFORMACAO(?:PECA|PROD)$/, "TRANSFORMAÇÃO"],
+    [/^TRANSF?(?:PECA|PROD)$/, "TRANSFERÊNCIA"],
+    [/^TRIANGULAR(?:PECA|PRD)$/, "TRIANGULAR"],
+  ];
+
+  for (const [padrao, familia] of familias) {
+    if (!padrao.test(chave)) continue;
+    if (familia) return familia;
+    return chave.replace(/(?:PECA|PECAS|PRODUTO|PROD)$/, "");
+  }
+  if (/(?:PECAS?|PRODUTO|PROD|PRD)$/.test(chave)) {
+    return chave.replace(/(?:PECAS?|PRODUTO|PROD|PRD)$/, "");
+  }
+  return nome;
+}
+
 export function agruparOrdensPorFila(ordens: OrdemWMS[]): FilaAgrupada[] {
   const contagens = new Map<string, FilaAgrupada>();
   for (const ordem of ordens) {
     const id = obterIdFila(ordem.infosAdicionais?.fila);
     if (!id) continue;
-    const nome = nomeFila(id);
-    const existente = contagens.get(id);
+    const nome = nomeFamiliaFila(nomeFila(id));
+    const existente = contagens.get(nome);
     if (existente) {
       existente.quantidade += 1;
       existente.valorTotal += paraNumero(ordem.infosAdicionais?.valordaordem);
     } else {
-      contagens.set(id, {
+      contagens.set(nome, {
         id,
         nome,
         quantidade: 1,
@@ -103,13 +146,10 @@ export function agruparOrdensPorFila(ordens: OrdemWMS[]): FilaAgrupada[] {
     }
   }
 
-  let indiceFilaSemDescricao = 0;
   return [...contagens.values()]
     .sort((a, b) => b.quantidade - a.quantidade || a.nome.localeCompare(b.nome, "pt-BR"))
     .map((fila) =>
-      fila.nome === "Fila não identificada"
-        ? { ...fila, nome: `Fila sem descrição ${++indiceFilaSemDescricao}` }
-        : fila,
+      fila.nome === "Fila não identificada" ? { ...fila, nome: "OUTRAS FILAS" } : fila,
     );
 }
 

@@ -28,7 +28,6 @@ function Painel() {
       titulo="DASHBOARD WMS"
       subtitulo="Acompanhamento em tempo real da operação"
       consultar={consultarDashboardWms}
-      configuracaoId="painel-operacional"
       exibirGraficos
     />
   );

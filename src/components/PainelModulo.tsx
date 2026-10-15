@@ -1,33 +1,8 @@
 import { useServerFn } from "@tanstack/react-start";
-import {
-  ChevronDown,
-  ChevronUp,
-  Download,
-  GripVertical,
-  Plus,
-  Trash2,
-  Upload,
-} from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type DragEvent,
-  type FormEvent,
-} from "react";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { z } from "zod";
+import { Boxes, ClipboardList, ListOrdered, Package, Search } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts";
 import { BarraModulos } from "@/components/BarraModulos";
-import { ConfiguracaoConsultaModulo } from "@/components/ConfiguracaoConsultaModulo";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   ChartContainer,
@@ -40,11 +15,7 @@ import {
   formatarHora,
   formatarInteiro,
   formatarMoeda,
-  maiorValor,
-  nomeFila,
-  obterIdFila,
   paraNumero,
-  totalInfosAdicionais,
   totalOrdens,
   valorTotal,
   type OrdemWMS,
@@ -52,25 +23,40 @@ import {
 import {
   CONFIGURACAO_WMS_PADRAO,
   assinarApiAtiva,
-  assinarConfiguracaoConsultaModulo,
   assinarConfiguracaoWms,
   consultaDaConfiguracao,
   lerApiAtiva,
-  lerConfiguracaoConsultaModulo,
   lerConfiguracaoWms,
-  removerConfiguracaoConsultaModulo,
-  salvarConfiguracaoConsultaModulo,
-  type ConfiguracaoConsultaModulo as ConsultaModulo,
   type ConsultaEship,
-  type ConfiguracaoWms,
 } from "@/lib/wms-config";
 
 const INTERVALO_SEGUNDOS = 30;
-const CHAVE_CARTOES_PERSONALIZADOS = "wms-cartoes-personalizados";
-const CHAVE_LAYOUT_CARTOES = "wms-layout-cartoes";
 const CONFIGURACAO_GRAFICO_VALORES: ChartConfig = {
   valor: { label: "Valor", color: "var(--chart-1)" },
 };
+const CONFIGURACAO_GRAFICO_PEDIDOS: ChartConfig = {
+  quantidade: { label: "Pedidos", color: "var(--chart-1)" },
+};
+const formatadorValorCompacto = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+function formatarValorCompacto(valor: number): string {
+  return formatadorValorCompacto.format(valor);
+}
+
+function nomeStatusResumido(nome: string): string {
+  const nomes: Record<string, string> = {
+    "Aguardando documentação": "Ag. documentação",
+    "Aguardando Expedição": "Ag. expedição",
+    "Aguardando reenvio": "Ag. reenvio",
+    "Concluída/Despachada": "Concluída",
+  };
+  return nomes[nome] ?? nome;
+}
 
 type FretePorStatus = {
   id: string;
@@ -78,141 +64,15 @@ type FretePorStatus = {
   valor: number;
 };
 
-type LayoutCartao = {
-  largura: number;
-  altura: number;
-  ordem: number;
-};
-
-type DefinicaoCartao = {
+type StatusPedido = {
   id: string;
-  titulo: string;
-  valor: string;
-  descricao: string;
-  compacto?: boolean;
-  removivel?: boolean;
+  nome: string;
+  quantidade: number;
 };
-
-function validarLayoutCartao(valor: unknown): valor is LayoutCartao {
-  if (typeof valor !== "object" || valor === null) return false;
-  const layout = valor as Partial<LayoutCartao>;
-  return (
-    typeof layout.largura === "number" &&
-    Number.isInteger(layout.largura) &&
-    layout.largura >= 1 &&
-    layout.largura <= 12 &&
-    typeof layout.altura === "number" &&
-    Number.isInteger(layout.altura) &&
-    layout.altura >= 8 &&
-    layout.altura <= 24 &&
-    Number.isFinite(layout.ordem)
-  );
-}
-
-type IndicadorCartao =
-  | "ordens"
-  | "infosAdicionais"
-  | "valorTotal"
-  | "ordensComFila"
-  | "filasDistintas"
-  | "filaMaisComum"
-  | "ordensFilaMaisComum"
-  | "maiorValor";
-
-type CartaoPersonalizado = {
-  id: string;
-  titulo: string;
-  descricao: string;
-  indicador: IndicadorCartao;
-};
-
-const ConfiguracaoCartoesJsonSchema = z
-  .object({
-    formato: z.literal("painel-wms-cartoes"),
-    versao: z.literal(1),
-    exportadoEm: z.string(),
-    cartoes: z
-      .array(
-        z.object({
-          id: z.string().min(1).max(100),
-          titulo: z.string().trim().min(1).max(40),
-          descricao: z.string().max(80),
-          indicador: z.enum([
-            "ordens",
-            "infosAdicionais",
-            "valorTotal",
-            "ordensComFila",
-            "filasDistintas",
-            "filaMaisComum",
-            "ordensFilaMaisComum",
-            "maiorValor",
-          ]),
-        }),
-      )
-      .max(100),
-    layout: z.object({
-      colunas: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
-      flexivel: z.boolean(),
-      cartoes: z.record(
-        z.string(),
-        z.object({
-          largura: z.number().int().min(1).max(12),
-          altura: z.number().int().min(8).max(24),
-          ordem: z.number().finite(),
-        }),
-      ),
-    }),
-  })
-  .strict()
-  .superRefine((configuracao, contexto) => {
-    const ids = new Set<string>();
-    for (const cartao of configuracao.cartoes) {
-      if (ids.has(cartao.id)) {
-        contexto.addIssue({ code: "custom", message: "O arquivo contém cartões duplicados." });
-        return;
-      }
-      ids.add(cartao.id);
-    }
-
-    const layoutsPermitidos = new Set([
-      "ordens",
-      "infos-adicionais",
-      "valor-ordens",
-      "ordens-fila",
-      ...configuracao.cartoes.map((cartao) => `personalizado-${cartao.id}`),
-    ]);
-    for (const id of Object.keys(configuracao.layout.cartoes)) {
-      if (!layoutsPermitidos.has(id)) {
-        contexto.addIssue({ code: "custom", message: "O arquivo contém um layout desconhecido." });
-        return;
-      }
-    }
-  });
-
-const INDICADORES_CARTAO: { id: IndicadorCartao; nome: string }[] = [
-  { id: "ordens", nome: "Ordens retornadas" },
-  { id: "infosAdicionais", nome: "Informações adicionais" },
-  { id: "valorTotal", nome: "Valor total das ordens" },
-  { id: "ordensComFila", nome: "Ordens com fila" },
-  { id: "filasDistintas", nome: "Filas distintas" },
-  { id: "filaMaisComum", nome: "Fila mais comum" },
-  { id: "ordensFilaMaisComum", nome: "Ordens na fila mais comum" },
-  { id: "maiorValor", nome: "Maior valor de ordem" },
-];
-
-function validarCartaoPersonalizado(valor: unknown): valor is CartaoPersonalizado {
-  if (typeof valor !== "object" || valor === null) return false;
-  const cartao = valor as Partial<CartaoPersonalizado>;
-  return (
-    typeof cartao.id === "string" &&
-    typeof cartao.titulo === "string" &&
-    typeof cartao.descricao === "string" &&
-    INDICADORES_CARTAO.some((indicador) => indicador.id === cartao.indicador)
-  );
-}
 
 type ConsultaFn = (options: { data: ConsultaEship }) => Promise<{
   ordens: OrdemWMS[];
+  statusPedidos?: StatusPedido[];
   fretesPorStatus?: FretePorStatus[];
 }>;
 
@@ -220,53 +80,40 @@ export function PainelModulo({
   titulo,
   subtitulo,
   consultar,
-  configuracaoId,
-  configuracaoConsulta,
+  consultaInicial,
   exibirGraficos = false,
 }: {
   titulo: string;
   subtitulo: string;
   consultar: ConsultaFn;
-  configuracaoId: string;
-  configuracaoConsulta?: ConsultaEship;
+  consultaInicial?: ConsultaEship;
   exibirGraficos?: boolean;
 }) {
   const [ordens, setOrdens] = useState<OrdemWMS[]>([]);
+  const [statusPedidos, setStatusPedidos] = useState<StatusPedido[]>([]);
   const [fretesPorStatus, setFretesPorStatus] = useState<FretePorStatus[]>([]);
+  const [buscaFila, setBuscaFila] = useState("");
   const [apiAtiva, setApiAtiva] = useState(true);
   const [preferenciaApiCarregada, setPreferenciaApiCarregada] = useState(false);
-  const [conectado, setConectado] = useState(true);
+  const [conectado, setConectado] = useState(false);
+  const [consultando, setConsultando] = useState(true);
   const [atualizadoEm, setAtualizadoEm] = useState<string>("--:--:--");
   const [contador, setContador] = useState(INTERVALO_SEGUNDOS);
-  const [layoutColunas, setLayoutColunas] = useState<1 | 2 | 3 | 4>(() => {
-    if (typeof window === "undefined") return 4;
-    const salvo = window.localStorage.getItem("wms-layout-colunas");
-    const valor = Number(salvo ?? "4");
-    return [1, 2, 3, 4].includes(valor) ? (valor as 1 | 2 | 3 | 4) : 4;
-  });
-  const [layoutFlexivel, setLayoutFlexivel] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    const salvo = window.localStorage.getItem("wms-layout-flexivel");
-    return salvo === null ? true : salvo === "true";
-  });
-  const [modoMontagem, setModoMontagem] = useState(false);
-  const [layoutCartoes, setLayoutCartoes] = useState<Record<string, LayoutCartao>>({});
-  const [layoutCartoesCarregado, setLayoutCartoesCarregado] = useState(false);
-  const [mensagemCartoes, setMensagemCartoes] = useState("");
-  const entradaArquivoCartoes = useRef<HTMLInputElement>(null);
-  const [cartoesPersonalizados, setCartoesPersonalizados] = useState<CartaoPersonalizado[]>([]);
-  const [cartoesCarregados, setCartoesCarregados] = useState(false);
-  const [dialogCartaoAberto, setDialogCartaoAberto] = useState(false);
-  const [indicadorNovoCartao, setIndicadorNovoCartao] = useState<IndicadorCartao>("ordens");
-  const [tituloNovoCartao, setTituloNovoCartao] = useState("");
-  const [descricaoNovoCartao, setDescricaoNovoCartao] = useState("");
-  const [consulta, setConsulta] = useState(() => obterConsultaAtiva(configuracaoId, configuracaoConsulta));
-  const [consultaPersonalizada, setConsultaPersonalizada] = useState(
-    () => lerConfiguracaoConsultaModulo(configuracaoId) !== null,
-  );
+  const [consulta, setConsulta] = useState(() => obterConsultaAtiva(consultaInicial));
   const carregando = useRef(false);
-  const cartaoArrastado = useRef<string | null>(null);
   const consultarAPI = useServerFn(consultar);
+
+  useEffect(() => {
+    for (const chave of [
+      "wms-cartoes-personalizados",
+      "wms-layout-cartoes",
+      "wms-layout-colunas",
+      "wms-layout-flexivel",
+      "wms-painel:consultas-dashboards",
+    ]) {
+      window.localStorage.removeItem(chave);
+    }
+  }, []);
 
   useEffect(() => {
     const atualizar = () => {
@@ -278,40 +125,22 @@ export function PainelModulo({
   }, []);
 
   useEffect(() => {
-    const atualizarConsulta = () => {
-      setConsulta(obterConsultaAtiva(configuracaoId, configuracaoConsulta));
-      setConsultaPersonalizada(lerConfiguracaoConsultaModulo(configuracaoId) !== null);
-    };
-
-    const cancelarConfiguracao = assinarConfiguracaoWms(atualizarConsulta);
-    const cancelarConsultaModulo = assinarConfiguracaoConsultaModulo(
-      configuracaoId,
-      atualizarConsulta,
-    );
-    return () => {
-      cancelarConfiguracao();
-      cancelarConsultaModulo();
-    };
-  }, [configuracaoId, configuracaoConsulta]);
-
-  function salvarConsultaModulo(novaConsulta: ConsultaModulo) {
-    salvarConfiguracaoConsultaModulo(configuracaoId, novaConsulta);
-    setConsultaPersonalizada(true);
-    setConsulta(novaConsulta);
-  }
-
-  function restaurarConsultaModulo() {
-    removerConfiguracaoConsultaModulo(configuracaoId);
-    setConsultaPersonalizada(false);
-    setConsulta(obterConsultaAtiva(configuracaoId, configuracaoConsulta));
-  }
+    if (consultaInicial) {
+      setConsulta(consultaInicial);
+      return;
+    }
+    const atualizarConsulta = () => setConsulta(obterConsultaAtiva());
+    return assinarConfiguracaoWms(atualizarConsulta);
+  }, [consultaInicial]);
 
   const atualizarDashboard = useCallback(async () => {
     if (!preferenciaApiCarregada || !apiAtiva || carregando.current) return;
     carregando.current = true;
+    setConsultando(true);
     try {
       const dados = await consultarAPI({ data: consulta });
       setOrdens(dados.ordens);
+      setStatusPedidos(dados.statusPedidos ?? []);
       setFretesPorStatus(dados.fretesPorStatus ?? []);
       setConectado(true);
       setAtualizadoEm(formatarHora(new Date()));
@@ -320,6 +149,7 @@ export function PainelModulo({
     } finally {
       carregando.current = false;
       setContador(INTERVALO_SEGUNDOS);
+      setConsultando(false);
     }
   }, [apiAtiva, consulta, consultarAPI, preferenciaApiCarregada]);
 
@@ -327,6 +157,7 @@ export function PainelModulo({
     if (!preferenciaApiCarregada) return;
     if (!apiAtiva) {
       setContador(INTERVALO_SEGUNDOS);
+      setConsultando(false);
       return;
     }
     void atualizarDashboard();
@@ -342,136 +173,10 @@ export function PainelModulo({
     return () => window.clearInterval(id);
   }, [apiAtiva, atualizarDashboard, preferenciaApiCarregada]);
 
-  useEffect(() => {
-    window.localStorage.setItem("wms-layout-colunas", String(layoutColunas));
-  }, [layoutColunas]);
-
-  useEffect(() => {
-    window.localStorage.setItem("wms-layout-flexivel", String(layoutFlexivel));
-  }, [layoutFlexivel]);
-
-  useEffect(() => {
-    try {
-      const salvo: unknown = JSON.parse(window.localStorage.getItem(CHAVE_LAYOUT_CARTOES) ?? "{}");
-      if (typeof salvo === "object" && salvo !== null && !Array.isArray(salvo)) {
-        setLayoutCartoes(
-          Object.fromEntries(Object.entries(salvo).filter(([, valor]) => validarLayoutCartao(valor))),
-        );
-      }
-    } catch {
-      setLayoutCartoes({});
-    }
-    setLayoutCartoesCarregado(true);
-  }, []);
-
-  useEffect(() => {
-    if (!layoutCartoesCarregado) return;
-    window.localStorage.setItem(CHAVE_LAYOUT_CARTOES, JSON.stringify(layoutCartoes));
-  }, [layoutCartoes, layoutCartoesCarregado]);
-
-  useEffect(() => {
-    try {
-      const salvos: unknown = JSON.parse(
-        window.localStorage.getItem(CHAVE_CARTOES_PERSONALIZADOS) ?? "[]",
-      );
-      if (Array.isArray(salvos)) {
-        setCartoesPersonalizados(salvos.filter(validarCartaoPersonalizado));
-      }
-    } catch {
-      setCartoesPersonalizados([]);
-    }
-    setCartoesCarregados(true);
-  }, []);
-
-  useEffect(() => {
-    if (!cartoesCarregados) return;
-    window.localStorage.setItem(
-      CHAVE_CARTOES_PERSONALIZADOS,
-      JSON.stringify(cartoesPersonalizados),
-    );
-  }, [cartoesCarregados, cartoesPersonalizados]);
-
-  function criarCartao(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const titulo = tituloNovoCartao.trim();
-    if (!titulo) return;
-
-    setCartoesPersonalizados((atuais) => [
-      ...atuais,
-      {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        titulo,
-        descricao: descricaoNovoCartao.trim(),
-        indicador: indicadorNovoCartao,
-      },
-    ]);
-    setTituloNovoCartao("");
-    setDescricaoNovoCartao("");
-    setIndicadorNovoCartao("ordens");
-    setDialogCartaoAberto(false);
-  }
-
-  function exportarCartoes() {
-    const arquivo = {
-      formato: "painel-wms-cartoes",
-      versao: 1,
-      exportadoEm: new Date().toISOString(),
-      cartoes: cartoesPersonalizados,
-      layout: {
-        colunas: layoutColunas,
-        flexivel: layoutFlexivel,
-        cartoes: Object.fromEntries(
-          cartoesDashboard.map(({ id, largura, altura, ordem }) => [id, { largura, altura, ordem }]),
-        ),
-      },
-    };
-    const blob = new Blob([JSON.stringify(arquivo, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `painel-wms-cartoes-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 0);
-  }
-
-  async function importarCartoes(arquivo: File) {
-    setMensagemCartoes("");
-    if (arquivo.size > 1_000_000) {
-      setMensagemCartoes("O arquivo excede o limite de 1 MB.");
-      return;
-    }
-
-    try {
-      const json: unknown = JSON.parse(await arquivo.text());
-      const validacao = ConfiguracaoCartoesJsonSchema.safeParse(json);
-      if (!validacao.success) {
-        setMensagemCartoes("Arquivo inválido ou incompatível com o formato de cartões WMS.");
-        return;
-      }
-
-      const existeConfiguracaoAtual =
-        cartoesPersonalizados.length > 0 || Object.keys(layoutCartoes).length > 0;
-      if (
-        existeConfiguracaoAtual &&
-        !window.confirm("A importação substituirá os cartões e o layout atuais. Deseja continuar?")
-      ) {
-        return;
-      }
-
-      setCartoesPersonalizados(validacao.data.cartoes);
-      setLayoutCartoes(validacao.data.layout.cartoes);
-      setLayoutColunas(validacao.data.layout.colunas);
-      setLayoutFlexivel(validacao.data.layout.flexivel);
-      const quantidade = validacao.data.cartoes.length;
-      setMensagemCartoes(
-        `Importação concluída: ${quantidade} ${quantidade === 1 ? "cartão personalizado" : "cartões personalizados"}.`,
-      );
-    } catch {
-      setMensagemCartoes("Não foi possível ler o arquivo JSON selecionado.");
-    }
-  }
-
   const filas = agruparOrdensPorFila(ordens);
+  const filasFiltradas = filas.filter((fila) =>
+    fila.nome.toLocaleLowerCase("pt-BR").includes(buscaFila.trim().toLocaleLowerCase("pt-BR")),
+  );
   const valoresPorFila = [...filas]
     .sort((a, b) => b.valorTotal - a.valorTotal || a.nome.localeCompare(b.nome, "pt-BR"))
     .map(({ nome, valorTotal: total, quantidade }) => ({
@@ -481,89 +186,6 @@ export function PainelModulo({
     }));
   const ordensComFila = filas.reduce((totalFilas, fila) => totalFilas + fila.quantidade, 0);
   const filaMaisComum = filas[0];
-  const valoresIndicadores: Record<IndicadorCartao, string> = {
-    ordens: formatarInteiro(totalOrdens(ordens)),
-    infosAdicionais: formatarInteiro(totalInfosAdicionais(ordens)),
-    valorTotal: formatarMoeda(valorTotal(ordens)),
-    ordensComFila: formatarInteiro(ordensComFila),
-    filasDistintas: formatarInteiro(filas.length),
-    filaMaisComum: filaMaisComum?.nome ?? "—",
-    ordensFilaMaisComum: formatarInteiro(filaMaisComum?.quantidade ?? 0),
-    maiorValor: formatarMoeda(maiorValor(ordens)),
-  };
-  const definicoesCartoes: DefinicaoCartao[] = [
-    ...cartoesPersonalizados.map((cartao) => ({
-      id: `personalizado-${cartao.id}`,
-      titulo: cartao.titulo,
-      valor: valoresIndicadores[cartao.indicador],
-      descricao: cartao.descricao,
-      compacto: cartao.indicador === "valorTotal" || cartao.indicador === "maiorValor",
-      removivel: true,
-    })),
-  ];
-  const cartoesDashboard = definicoesCartoes
-    .map((cartao, indice) => {
-      const layout = layoutCartoes[cartao.id];
-      return {
-        ...cartao,
-        largura: layout?.largura ?? 12 / layoutColunas,
-        altura: layout?.altura ?? 10,
-        ordem: layout?.ordem ?? indice,
-      };
-    })
-    .sort((a, b) => a.ordem - b.ordem);
-
-  function atualizarLayoutCartao(id: string, alteracoes: Partial<LayoutCartao>) {
-    const cartao = cartoesDashboard.find((item) => item.id === id);
-    if (!cartao) return;
-
-    setLayoutCartoes((atuais) => ({
-      ...atuais,
-      [id]: {
-        largura: cartao.largura,
-        altura: cartao.altura,
-        ordem: cartao.ordem,
-        ...atuais[id],
-        ...alteracoes,
-      },
-    }));
-  }
-
-  function reordenarCartao(id: string) {
-    const origem = cartaoArrastado.current;
-    if (!origem || origem === id) return;
-
-    const reordenados = [...cartoesDashboard];
-    const indiceOrigem = reordenados.findIndex((cartao) => cartao.id === origem);
-    const indiceDestino = reordenados.findIndex((cartao) => cartao.id === id);
-    if (indiceOrigem < 0 || indiceDestino < 0) return;
-
-    const [movido] = reordenados.splice(indiceOrigem, 1);
-    if (!movido) return;
-    reordenados.splice(indiceDestino, 0, movido);
-    setLayoutCartoes((atuais) => {
-      const novosLayouts = { ...atuais };
-      reordenados.forEach((cartao, ordem) => {
-        novosLayouts[cartao.id] = {
-          largura: cartao.largura,
-          altura: cartao.altura,
-          ...atuais[cartao.id],
-          ordem,
-        };
-      });
-      return novosLayouts;
-    });
-    cartaoArrastado.current = null;
-  }
-
-  function moverCartao(id: string, deslocamento: -1 | 1) {
-    const indice = cartoesDashboard.findIndex((cartao) => cartao.id === id);
-    const destino = cartoesDashboard[indice + deslocamento];
-    if (!destino) return;
-    cartaoArrastado.current = id;
-    reordenarCartao(destino.id);
-  }
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <BarraModulos />
@@ -583,285 +205,127 @@ export function PainelModulo({
                 className={
                   !apiAtiva
                     ? "inline-flex items-center gap-2 rounded-sm border border-border bg-muted px-3 py-1 text-sm font-semibold tracking-[0.15em] text-muted-foreground"
-                    : conectado
-                    ? "inline-flex items-center gap-2 rounded-sm border border-status-ok/40 bg-status-ok/10 px-3 py-1 text-sm font-semibold tracking-[0.15em] text-status-ok"
-                    : "inline-flex items-center gap-2 rounded-sm border border-destructive/40 bg-destructive/10 px-3 py-1 text-sm font-semibold tracking-[0.15em] text-destructive"
+                    : consultando
+                      ? "inline-flex items-center gap-2 rounded-sm border border-primary/40 bg-primary/10 px-3 py-1 text-sm font-semibold tracking-[0.15em] text-primary"
+                      : conectado
+                        ? "inline-flex items-center gap-2 rounded-sm border border-status-ok/40 bg-status-ok/10 px-3 py-1 text-sm font-semibold tracking-[0.15em] text-status-ok"
+                        : "inline-flex items-center gap-2 rounded-sm border border-destructive/40 bg-destructive/10 px-3 py-1 text-sm font-semibold tracking-[0.15em] text-destructive"
                 }
               >
                 <span className="text-lg leading-none">●</span>
-                {!apiAtiva ? "API PAUSADA" : conectado ? "CONECTADO" : "OFFLINE"}
+                {!apiAtiva
+                  ? "API PAUSADA"
+                  : consultando
+                    ? "CONECTANDO"
+                    : conectado
+                      ? "CONECTADO"
+                      : "OFFLINE"}
               </span>
               <span className="text-xs tracking-[0.12em] text-muted-foreground lg:text-sm">
                 Última atualização: <span className="text-foreground">{atualizadoEm}</span>
               </span>
-              {apiAtiva && !conectado && (
+              {apiAtiva && !conectado && !consultando && (
                 <span className="text-xs font-semibold tracking-[0.12em] text-destructive">
-                  Falha na comunicação com a API WMS
+                  Falha na comunicação com a API E-SHIP
                 </span>
               )}
-            </div>
-            <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
-              <div className="flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-border bg-card/80 px-2 py-1.5 shadow-sm backdrop-blur-sm">
-                <span className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Layout
-                </span>
-
-                <div className="flex max-w-full flex-wrap items-center gap-1 rounded-md border border-border bg-background p-1">
-                  {[1, 2, 3, 4].map((coluna) => (
-                    <button
-                      key={coluna}
-                      type="button"
-                      onClick={() => setLayoutColunas(coluna as 1 | 2 | 3 | 4)}
-                      className={[
-                        "min-w-8 rounded-sm px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors",
-                        layoutColunas === coluna
-                          ? "bg-primary text-primary-foreground shadow-sm"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                      ].join(" ")}
-                      aria-pressed={layoutColunas === coluna}
-                      aria-label={`Usar ${coluna} colunas`}
-                    >
-                      {coluna}
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setLayoutFlexivel((valor) => !valor)}
-                  className={[
-                    "rounded-md border px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] transition-colors",
-                    layoutFlexivel
-                      ? "border-primary/40 bg-primary/10 text-primary"
-                      : "border-border bg-background text-muted-foreground",
-                  ].join(" ")}
-                  aria-pressed={layoutFlexivel}
-                >
-                  {layoutFlexivel ? "Flex" : "Fixo"}
-                </button>
-              </div>
-              <ConfiguracaoConsultaModulo
-                titulo={titulo}
-                configuracao={{ funcao: consulta.funcao, parametros: consulta.parametros }}
-                personalizada={consultaPersonalizada}
-                textoRestaurar={
-                  configuracaoConsulta ? "Restaurar definição original" : "Usar configuração geral"
-                }
-                aoSalvar={salvarConsultaModulo}
-                aoRestaurar={restaurarConsultaModulo}
-              />
-              <Button
-                type="button"
-                variant={modoMontagem ? "secondary" : "outline"}
-                size="sm"
-                aria-pressed={modoMontagem}
-                onClick={() => setModoMontagem((ativo) => !ativo)}
-              >
-                <GripVertical aria-hidden="true" />
-                {modoMontagem ? "Concluir edição" : "Montar painel"}
-              </Button>
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  title="Exportar configurações dos cartões"
-                  aria-label="Exportar configurações dos cartões"
-                  disabled={!cartoesCarregados || !layoutCartoesCarregado}
-                  onClick={exportarCartoes}
-                >
-                  <Download aria-hidden="true" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  title="Importar configurações dos cartões"
-                  aria-label="Importar configurações dos cartões"
-                  disabled={!cartoesCarregados || !layoutCartoesCarregado}
-                  onClick={() => entradaArquivoCartoes.current?.click()}
-                >
-                  <Upload aria-hidden="true" />
-                </Button>
-                <input
-                  ref={entradaArquivoCartoes}
-                  type="file"
-                  accept=".json,application/json"
-                  className="hidden"
-                  aria-label="Arquivo JSON de configurações dos cartões"
-                  onChange={(event) => {
-                    const arquivo = event.currentTarget.files?.[0];
-                    event.currentTarget.value = "";
-                    if (arquivo) void importarCartoes(arquivo);
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDialogCartaoAberto(true)}
-                >
-                  <Plus aria-hidden="true" />
-                  Novo cartão
-                </Button>
-              </div>
             </div>
           </div>
         </header>
 
-        <Dialog open={dialogCartaoAberto} onOpenChange={setDialogCartaoAberto}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Novo cartão personalizado</DialogTitle>
-            </DialogHeader>
-            <form className="space-y-4" onSubmit={criarCartao}>
-              <label className="block space-y-1.5 text-sm font-medium" htmlFor="cartao-titulo">
-                Título
-                <Input
-                  id="cartao-titulo"
-                  value={tituloNovoCartao}
-                  onChange={(event) => setTituloNovoCartao(event.target.value)}
-                  maxLength={40}
-                  required
-                />
-              </label>
-              <label className="block space-y-1.5 text-sm font-medium" htmlFor="cartao-indicador">
-                Indicador
-                <select
-                  id="cartao-indicador"
-                  className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
-                  value={indicadorNovoCartao}
-                  onChange={(event) =>
-                    setIndicadorNovoCartao(event.target.value as IndicadorCartao)
-                  }
-                >
-                  {INDICADORES_CARTAO.map((indicador) => (
-                    <option key={indicador.id} value={indicador.id}>
-                      {indicador.nome}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block space-y-1.5 text-sm font-medium" htmlFor="cartao-descricao">
-                Descrição
-                <Input
-                  id="cartao-descricao"
-                  value={descricaoNovoCartao}
-                  onChange={(event) => setDescricaoNovoCartao(event.target.value)}
-                  maxLength={80}
-                />
-              </label>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setDialogCartaoAberto(false)}>
-                  Cancelar
-                </Button>
-                <Button type="submit">Criar cartão</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-
-        {mensagemCartoes && (
-          <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
-            {mensagemCartoes}
-          </p>
-        )}
-
         {exibirGraficos && (
-          <section className="grid gap-4 md:grid-cols-3" aria-label="Resumo do dashboard">
-            <div className="panel border-l-4 border-l-primary px-5 py-5">
-              <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground">
-                VALOR DA ORDEM
-              </p>
-              <p className="mt-2 text-3xl font-bold tabular-nums text-foreground lg:text-4xl">
-                {formatarMoeda(valorTotal(ordens))}
-              </p>
-              <p className="mt-2 text-sm text-muted-foreground">Valor total das ordens consultadas</p>
+          <section
+            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+            aria-label="Resumo do dashboard"
+          >
+            <div className="panel flex min-w-0 items-center gap-4 p-4 lg:p-5">
+              <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-primary/15 text-primary lg:size-14">
+                <Package aria-hidden="true" className="size-6 lg:size-7" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold tracking-[0.12em] text-muted-foreground">
+                  VALOR DAS ORDENS
+                </p>
+                <p className="mt-1 break-words text-2xl font-bold tabular-nums text-foreground lg:text-3xl">
+                  {formatarMoeda(valorTotal(ordens))}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">Total das ordens consultadas</p>
+              </div>
             </div>
-            <div className="panel border-l-4 border-l-primary px-5 py-5">
-              <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground">FILA</p>
-              <p className="mt-2 text-3xl font-bold text-foreground lg:text-4xl">
-                {filaMaisComum?.nome ?? "—"}
-              </p>
-              <p className="mt-2 text-sm text-muted-foreground">Fila com mais pedidos</p>
+            <div className="panel flex min-w-0 items-center gap-4 p-4 lg:p-5">
+              <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-violet-500/15 text-violet-300 lg:size-14">
+                <ListOrdered aria-hidden="true" className="size-6 lg:size-7" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold tracking-[0.12em] text-muted-foreground">
+                  FILA COM MAIS PEDIDOS
+                </p>
+                <p className="mt-1 break-words text-2xl font-bold text-foreground lg:text-3xl">
+                  {filaMaisComum?.nome ?? "—"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {formatarInteiro(filaMaisComum?.quantidade ?? 0)} pedidos
+                </p>
+              </div>
             </div>
-            <div className="panel border-l-4 border-l-primary px-5 py-5">
-              <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground">
-                TOTAL DE PEDIDOS
-              </p>
-              <p className="mt-2 text-3xl font-bold tabular-nums text-foreground lg:text-4xl">
-                {formatarInteiro(totalOrdens(ordens))}
-              </p>
-              <p className="mt-2 text-sm text-muted-foreground">Pedidos retornados pela API</p>
+            <div className="panel flex min-w-0 items-center gap-4 p-4 lg:p-5">
+              <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-primary/15 text-primary lg:size-14">
+                <ClipboardList aria-hidden="true" className="size-6 lg:size-7" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold tracking-[0.12em] text-muted-foreground">
+                  TOTAL DE PEDIDOS
+                </p>
+                <p className="mt-1 text-3xl font-bold tabular-nums text-foreground lg:text-4xl">
+                  {formatarInteiro(totalOrdens(ordens))}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">Pedidos retornados pela API</p>
+              </div>
+            </div>
+            <div className="panel flex min-w-0 items-center gap-4 p-4 lg:p-5">
+              <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-violet-500/15 text-violet-300 lg:size-14">
+                <Boxes aria-hidden="true" className="size-6 lg:size-7" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold tracking-[0.12em] text-muted-foreground">
+                  PEDIDOS COM FILA
+                </p>
+                <p className="mt-1 text-3xl font-bold tabular-nums text-foreground lg:text-4xl">
+                  {formatarInteiro(ordensComFila)}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">Ordens com fila identificada</p>
+              </div>
             </div>
           </section>
         )}
 
-        <div
-          className={[
-            "dashboard-cards-grid gap-4 lg:gap-6",
-            layoutFlexivel ? "items-stretch" : "items-start",
-          ].join(" ")}
-        >
-          {cartoesDashboard.map((cartao, indice) => (
-            <Card
-              key={cartao.id}
-              largura={cartao.largura}
-              altura={cartao.altura}
-              titulo={cartao.titulo}
-              valor={cartao.valor}
-              descricao={cartao.descricao}
-              compacto={cartao.compacto}
-              removivel={cartao.removivel}
-              emEdicao={modoMontagem}
-              podeMoverCima={indice > 0}
-              podeMoverBaixo={indice < cartoesDashboard.length - 1}
-              aoMover={(deslocamento) => moverCartao(cartao.id, deslocamento)}
-              aoAlterarTamanho={(largura, altura) =>
-                atualizarLayoutCartao(cartao.id, { largura, altura })
-              }
-              aoIniciarArrasto={(event) => {
-                cartaoArrastado.current = cartao.id;
-                event.dataTransfer.effectAllowed = "move";
-                event.dataTransfer.setData("text/plain", cartao.id);
-              }}
-              aoSoltar={() => reordenarCartao(cartao.id)}
-              aoFinalizarArrasto={() => {
-                cartaoArrastado.current = null;
-              }}
-              aoRemover={
-                cartao.removivel
-                  ? () =>
-                      setCartoesPersonalizados((atuais) =>
-                        atuais.filter((item) => `personalizado-${item.id}` !== cartao.id),
-                      )
-                  : undefined
-              }
-            />
-          ))}
-        </div>
-
         {exibirGraficos && (
-          <section className="grid gap-4 xl:grid-cols-2" aria-label="Indicadores do dashboard">
-            <div className="panel min-w-0 p-5">
-              <h2 className="mb-4 text-base font-semibold text-foreground">Valor das ordens por fila</h2>
+          <section className="grid gap-3 xl:grid-cols-3" aria-label="Indicadores do dashboard">
+            <div className="panel min-w-0 p-4 lg:p-5">
+              <h2 className="mb-3 text-base font-semibold text-foreground">
+                Valor das ordens por fila
+              </h2>
               {valoresPorFila.length > 0 ? (
                 <div className="overflow-x-auto">
                   <ChartContainer
                     config={CONFIGURACAO_GRAFICO_VALORES}
-                    className="h-[340px] aspect-auto"
+                    className="h-[260px] aspect-auto"
                     style={{ minWidth: `${Math.max(640, valoresPorFila.length * 76)}px` }}
                   >
-                    <BarChart data={valoresPorFila} margin={{ top: 12, right: 16, left: 8, bottom: 66 }}>
+                    <BarChart
+                      data={valoresPorFila}
+                      margin={{ top: 28, right: 16, left: 8, bottom: 70 }}
+                    >
                       <CartesianGrid vertical={false} strokeDasharray="3 3" />
                       <XAxis
                         dataKey="nome"
-                        angle={-35}
+                        angle={-30}
                         textAnchor="end"
                         interval={0}
-                        height={78}
+                        height={84}
                         tickLine={false}
                         axisLine={false}
+                        tick={{ fontSize: 12 }}
                       />
                       <YAxis
                         tickFormatter={(valor: number) =>
@@ -882,25 +346,51 @@ export function PainelModulo({
                           />
                         }
                       />
-                      <Bar dataKey="valor" fill="var(--color-valor)" radius={4} />
+                      <Bar dataKey="valor" fill="var(--color-valor)" radius={4}>
+                        <LabelList
+                          dataKey="valor"
+                          position="top"
+                          formatter={(valor: number) => formatarValorCompacto(valor)}
+                          fill="var(--foreground)"
+                          fontSize={12}
+                          fontWeight={600}
+                        />
+                      </Bar>
                     </BarChart>
                   </ChartContainer>
                 </div>
               ) : (
-                <p className="flex h-[340px] items-center justify-center text-sm text-muted-foreground">
+                <p className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">
                   Nenhuma fila encontrada no retorno da API.
                 </p>
               )}
             </div>
 
             <div className="panel min-w-0 p-5">
-              <h2 className="mb-4 text-base font-semibold text-foreground">Valor do frete por status</h2>
-              {fretesPorStatus.length > 0 ? (
-                <ChartContainer config={CONFIGURACAO_GRAFICO_VALORES} className="h-[340px] aspect-auto">
-                  <BarChart data={fretesPorStatus} margin={{ top: 12, right: 16, left: 8, bottom: 20 }}>
+              <h2 className="mb-3 text-base font-semibold text-foreground">Pedidos por status</h2>
+              {statusPedidos.length > 0 ? (
+                <ChartContainer
+                  config={CONFIGURACAO_GRAFICO_PEDIDOS}
+                  className="h-[260px] aspect-auto"
+                >
+                  <BarChart
+                    data={statusPedidos}
+                    margin={{ top: 24, right: 8, left: 0, bottom: 74 }}
+                  >
                     <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                    <XAxis dataKey="nome" interval={0} tickLine={false} axisLine={false} />
+                    <XAxis
+                      dataKey="nome"
+                      tickFormatter={nomeStatusResumido}
+                      angle={-28}
+                      textAnchor="end"
+                      interval={0}
+                      height={94}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 10 }}
+                    />
                     <YAxis
+                      allowDecimals={false}
                       tickFormatter={(valor: number) =>
                         new Intl.NumberFormat("pt-BR", { notation: "compact" }).format(valor)
                       }
@@ -911,18 +401,148 @@ export function PainelModulo({
                       cursor={false}
                       content={
                         <ChartTooltipContent
-                          formatter={(valor) => formatarMoeda(Number(valor))}
+                          formatter={(valor) => formatarInteiro(Number(valor))}
                         />
                       }
                     />
-                    <Bar dataKey="valor" fill="var(--color-valor)" radius={4} />
+                    <Bar dataKey="quantidade" fill="var(--color-quantidade)" radius={[7, 7, 0, 0]}>
+                      <LabelList
+                        dataKey="quantidade"
+                        position="top"
+                        formatter={(quantidade: number) => formatarInteiro(quantidade)}
+                        fill="var(--foreground)"
+                        fontSize={11}
+                        fontWeight={600}
+                      />
+                    </Bar>
                   </BarChart>
                 </ChartContainer>
               ) : (
-                <p className="flex h-[340px] items-center justify-center text-sm text-muted-foreground">
+                <p className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">
+                  Nenhum status de pedido encontrado na API.
+                </p>
+              )}
+            </div>
+
+            <div className="panel min-w-0 p-4 lg:p-5">
+              <h2 className="mb-3 text-base font-semibold text-foreground">
+                Valor do frete por status
+              </h2>
+              {fretesPorStatus.length > 0 ? (
+                <ChartContainer
+                  config={CONFIGURACAO_GRAFICO_VALORES}
+                  className="h-[260px] aspect-auto"
+                >
+                  <BarChart
+                    data={fretesPorStatus}
+                    margin={{ top: 24, right: 8, left: 4, bottom: 48 }}
+                  >
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="nome"
+                      tickFormatter={nomeStatusResumido}
+                      angle={-18}
+                      textAnchor="end"
+                      interval={0}
+                      height={56}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 10 }}
+                    />
+                    <YAxis
+                      tickFormatter={(valor: number) =>
+                        new Intl.NumberFormat("pt-BR", { notation: "compact" }).format(valor)
+                      }
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <ChartTooltip
+                      cursor={false}
+                      content={
+                        <ChartTooltipContent formatter={(valor) => formatarMoeda(Number(valor))} />
+                      }
+                    />
+                    <Bar dataKey="valor" fill="var(--color-valor)" radius={[7, 7, 0, 0]}>
+                      <LabelList
+                        dataKey="valor"
+                        position="top"
+                        formatter={(valor: number) => formatarValorCompacto(valor)}
+                        fill="var(--foreground)"
+                        fontSize={11}
+                        fontWeight={600}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ChartContainer>
+              ) : (
+                <p className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">
                   Nenhum frete encontrado para os status selecionados.
                 </p>
               )}
+            </div>
+
+            <div className="panel min-w-0 p-4 xl:col-span-3 lg:p-5">
+              <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-foreground">Fila por família</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {filasFiltradas.length} de {filas.length} famílias · pedidos e valor total
+                  </p>
+                </div>
+                <label className="relative block w-full sm:max-w-sm">
+                  <Search
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  />
+                  <Input
+                    aria-label="Pesquisar família de fila"
+                    placeholder="Pesquisar fila..."
+                    value={buscaFila}
+                    onChange={(event) => setBuscaFila(event.target.value)}
+                    className="h-10 rounded-xl border-border bg-background/60 pl-9"
+                  />
+                </label>
+              </div>
+              <div className="max-h-64 overflow-auto rounded-xl border border-border/70">
+                <table className="w-full min-w-[640px] text-left text-sm">
+                  <thead className="sticky top-0 bg-card text-xs font-semibold text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3">Família da fila</th>
+                      <th className="px-4 py-3 text-right">Pedidos</th>
+                      <th className="px-4 py-3 text-right">% do total</th>
+                      <th className="px-4 py-3 text-right">Valor total (R$)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filasFiltradas.map((fila) => (
+                      <tr
+                        key={fila.nome}
+                        className="border-t border-border/60 transition-colors hover:bg-primary/10"
+                      >
+                        <td className="px-4 py-3 font-medium text-foreground">{fila.nome}</td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {formatarInteiro(fila.quantidade)}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {totalOrdens(ordens) > 0
+                            ? `${formatarInteiro((fila.quantidade / totalOrdens(ordens)) * 100)}%`
+                            : "0%"}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium tabular-nums text-foreground">
+                          {formatarMoeda(fila.valorTotal)}
+                        </td>
+                      </tr>
+                    ))}
+                    {filasFiltradas.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
+                          Nenhuma fila encontrada.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </section>
         )}
@@ -930,7 +550,8 @@ export function PainelModulo({
         <footer className="panel px-5 py-3 text-center text-sm tracking-[0.14em] text-muted-foreground">
           {apiAtiva ? (
             <>
-              Próxima atualização em <span className="text-foreground tabular-nums">{contador}s</span>
+              Próxima atualização em{" "}
+              <span className="text-foreground tabular-nums">{contador}s</span>
             </>
           ) : (
             "Consultas da API pausadas"
@@ -941,166 +562,8 @@ export function PainelModulo({
   );
 }
 
-function obterConsultaAtiva(
-  configuracaoId: string,
-  configuracaoConsulta?: ConsultaEship,
-): ConsultaEship {
+function obterConsultaAtiva(consultaInicial?: ConsultaEship): ConsultaEship {
+  if (consultaInicial) return consultaInicial;
   const configuracaoGeral = lerConfiguracaoWms() ?? CONFIGURACAO_WMS_PADRAO;
-  const configuracaoDoModulo = lerConfiguracaoConsultaModulo(configuracaoId);
-  const consultaBase = configuracaoDoModulo ??
-    (configuracaoConsulta
-      ? { funcao: configuracaoConsulta.funcao, parametros: configuracaoConsulta.parametros }
-      : consultaDaConfiguracao(configuracaoGeral));
-
-  return consultaBase;
-}
-
-function Card({
-  titulo,
-  valor,
-  descricao,
-  compacto,
-  largura,
-  altura,
-  removivel,
-  emEdicao,
-  podeMoverCima,
-  podeMoverBaixo,
-  aoMover,
-  aoAlterarTamanho,
-  aoIniciarArrasto,
-  aoSoltar,
-  aoFinalizarArrasto,
-  aoRemover,
-}: {
-  titulo: string;
-  valor: string;
-  descricao: string;
-  compacto?: boolean | undefined;
-  largura: number;
-  altura: number;
-  removivel?: boolean | undefined;
-  emEdicao: boolean;
-  podeMoverCima: boolean;
-  podeMoverBaixo: boolean;
-  aoMover: (deslocamento: -1 | 1) => void;
-  aoAlterarTamanho: (largura: number, altura: number) => void;
-  aoIniciarArrasto: (event: DragEvent<HTMLButtonElement>) => void;
-  aoSoltar: () => void;
-  aoFinalizarArrasto: () => void;
-  aoRemover?: (() => void) | undefined;
-}) {
-  return (
-    <div
-      className={[
-        "panel dashboard-card relative border-l-4 border-l-primary px-5 py-5",
-        emEdicao ? "outline outline-1 outline-primary/40" : "",
-      ].join(" ")}
-      style={{ gridColumn: `span ${largura}`, gridRow: `span ${altura}` }}
-      onDragOver={(event) => event.preventDefault()}
-      onDrop={(event) => {
-        event.preventDefault();
-        aoSoltar();
-      }}
-    >
-      {emEdicao && (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2">
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              disabled={!podeMoverCima}
-              onClick={() => aoMover(-1)}
-              className="rounded-sm p-1 text-muted-foreground hover:bg-muted disabled:opacity-40"
-              aria-label={`Mover cartão ${titulo} para cima`}
-              title="Mover para cima"
-            >
-              <ChevronUp className="size-4" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              disabled={!podeMoverBaixo}
-              onClick={() => aoMover(1)}
-              className="rounded-sm p-1 text-muted-foreground hover:bg-muted disabled:opacity-40"
-              aria-label={`Mover cartão ${titulo} para baixo`}
-              title="Mover para baixo"
-            >
-              <ChevronDown className="size-4" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              draggable
-              onDragStart={aoIniciarArrasto}
-              onDragEnd={aoFinalizarArrasto}
-              className="cursor-grab rounded-sm p-1 text-muted-foreground hover:bg-muted active:cursor-grabbing"
-              aria-label={`Arrastar cartão ${titulo}`}
-              title="Arrastar para reordenar"
-            >
-              <GripVertical className="size-4" aria-hidden="true" />
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1 text-[10px] font-semibold uppercase text-muted-foreground">
-              L
-              <input
-                type="number"
-                min={1}
-                max={12}
-                value={largura}
-                onChange={(event) =>
-                  aoAlterarTamanho(
-                    Math.min(12, Math.max(1, Number(event.target.value) || 1)),
-                    altura,
-                  )
-                }
-                className="h-7 w-12 rounded-sm border border-input bg-background px-1 text-center text-xs text-foreground"
-                aria-label={`Largura do cartão ${titulo} em unidades`}
-              />
-            </label>
-            <span className="text-xs text-muted-foreground" aria-hidden="true">
-              ×
-            </span>
-            <label className="flex items-center gap-1 text-[10px] font-semibold uppercase text-muted-foreground">
-              A
-              <input
-                type="number"
-                min={8}
-                max={24}
-                value={altura}
-                onChange={(event) =>
-                  aoAlterarTamanho(
-                    largura,
-                    Math.min(24, Math.max(8, Number(event.target.value) || 8)),
-                  )
-                }
-                className="h-7 w-12 rounded-sm border border-input bg-background px-1 text-center text-xs text-foreground"
-                aria-label={`Altura do cartão ${titulo} em unidades`}
-              />
-            </label>
-          </div>
-        </div>
-      )}
-      {removivel && aoRemover && (
-        <button
-          type="button"
-          onClick={aoRemover}
-          className="absolute right-3 top-3 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-          aria-label={`Remover cartão ${titulo}`}
-          title="Remover cartão"
-        >
-          <Trash2 className="size-4" aria-hidden="true" />
-        </button>
-      )}
-      <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground">{titulo}</p>
-      <p
-        className={
-          compacto
-            ? "mt-2 text-3xl font-bold tabular-nums text-foreground lg:text-5xl"
-            : "mt-2 text-5xl font-bold tabular-nums text-foreground lg:text-7xl"
-        }
-      >
-        {valor}
-      </p>
-      <p className="mt-2 text-xs text-muted-foreground lg:text-sm">{descricao}</p>
-    </div>
-  );
+  return consultaDaConfiguracao(configuracaoGeral);
 }

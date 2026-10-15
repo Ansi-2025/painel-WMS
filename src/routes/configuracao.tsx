@@ -45,7 +45,9 @@ function Configuracao() {
   const [modulos, setModulos] = useState<ModuloPersonalizado[]>([]);
   const [nomeModulo, setNomeModulo] = useState("");
   const [funcaoModulo, setFuncaoModulo] = useState("");
-  const [parametrosModulo, setParametrosModulo] = useState<Record<string, string>>({ incluirInfo: "true" });
+  const [parametrosModulo, setParametrosModulo] = useState<Record<string, string>>({
+    incluirInfo: "true",
+  });
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState("");
   const [mensagemModulo, setMensagemModulo] = useState("");
@@ -80,14 +82,16 @@ function Configuracao() {
     setSalvando(true);
     try {
       const resposta = await consultar({ data: consultaDaConfiguracao(validacao.data) });
-      setMensagem(`Configuração salva. Conexão confirmada: ${resposta.ordens.length} ordens retornadas.`);
+      setMensagem(
+        `Configuração salva. Conexão confirmada: ${resposta.ordens.length} ordens retornadas.`,
+      );
     } catch (error) {
       const detalhe =
         error instanceof Error
           ? error.message.replace(/([?&]api=)[^&\s]+/gi, "$1[oculta]").slice(0, 180)
           : "erro desconhecido";
       setMensagem(
-        detalhe === "ESHIP_API_KEY não configurada no servidor"
+        detalhe === "API_KEY não configurada no servidor"
           ? "Configuração salva, mas não foi possível testar a conexão. Verifique a configuração do servidor."
           : `Configuração salva, mas o teste falhou: ${detalhe}`,
       );
@@ -198,8 +202,8 @@ function Configuracao() {
           </div>
           <div className="flex flex-col gap-3 border-t border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="max-w-2xl text-sm text-muted-foreground">
-              As configurações salvas neste navegador serão usadas por todos os dashboards e
-              módulos personalizados.
+              As configurações salvas neste navegador serão usadas por todos os dashboards e módulos
+              personalizados.
             </p>
             <Button type="submit" disabled={salvando}>
               <Save />
@@ -207,7 +211,11 @@ function Configuracao() {
             </Button>
           </div>
           {mensagem && (
-            <p role="status" aria-live="polite" className="border-t border-border px-5 py-3 text-sm">
+            <p
+              role="status"
+              aria-live="polite"
+              className="border-t border-border px-5 py-3 text-sm"
+            >
               {mensagem}
             </p>
           )}
@@ -261,7 +269,11 @@ function Configuracao() {
               </Button>
             </div>
             {mensagemModulo && (
-              <p role="status" aria-live="polite" className="border-t border-border px-5 py-3 text-sm">
+              <p
+                role="status"
+                aria-live="polite"
+                className="border-t border-border px-5 py-3 text-sm"
+              >
                 {mensagemModulo}
               </p>
             )}
@@ -324,7 +336,10 @@ function Campo({
 }) {
   return (
     <div className="min-w-0 space-y-2">
-      <Label htmlFor={id}>{label}{required ? " *" : ""}</Label>
+      <Label htmlFor={id}>
+        {label}
+        {required ? " *" : ""}
+      </Label>
       <Input
         id={id}
         name={id}

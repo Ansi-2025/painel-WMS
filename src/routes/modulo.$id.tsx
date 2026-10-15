@@ -3,10 +3,7 @@ import { useEffect, useState } from "react";
 import { PainelModulo } from "@/components/PainelModulo";
 import { BarraModulos } from "@/components/BarraModulos";
 import { consultarFuncao } from "@/lib/wms.functions";
-import {
-  buscarModuloPersonalizado,
-  type ModuloPersonalizado,
-} from "@/lib/wms-config";
+import { buscarModuloPersonalizado, type ModuloPersonalizado } from "@/lib/wms-config";
 
 export const Route = createFileRoute("/modulo/$id")({
   head: () => ({ meta: [{ title: "Módulo personalizado — Painel WMS" }] }),
@@ -42,8 +39,7 @@ function ModuloDinamico() {
       titulo={modulo.nome.toUpperCase()}
       subtitulo="Consulta configurada para este módulo"
       consultar={consultarFuncao}
-      configuracaoId={`personalizado:${modulo.id}`}
-      configuracaoConsulta={{ funcao: modulo.funcao, parametros: modulo.parametros }}
+      consultaInicial={{ funcao: modulo.funcao, parametros: modulo.parametros }}
     />
   );
 }

@@ -5,38 +5,53 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import { nitro } from "nitro/vite";
 import react from "@vitejs/plugin-react";
 import tsconfigPaths from "vite-tsconfig-paths";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 
 const rootDirectory = fileURLToPath(new URL(".", import.meta.url));
 
-export default defineConfig({
-  plugins: [
-    tailwindcss(),
-    tsconfigPaths({ projects: ["./tsconfig.json"] }),
-    tanstackStart({
-      importProtection: {
-        behavior: "error",
-        client: { files: ["**/server/**"], specifiers: ["server-only"] },
-      },
-      server: { entry: "server" },
-    }),
-    nitro({ defaultPreset: process.env.VERCEL ? "vercel" : "cloudflare-module" }),
-    react(),
-  ],
-  resolve: {
-    alias: { "@": resolve(rootDirectory, "src") },
-    dedupe: [
-      "react",
-      "react-dom",
-      "react/jsx-runtime",
-      "react/jsx-dev-runtime",
-      "@tanstack/react-query",
-      "@tanstack/query-core",
+export default defineConfig(({ mode }) => {
+  if (mode === "development") {
+    const localEnv = loadEnv(mode, rootDirectory, "");
+    if (!process.env["API_KEY"] && localEnv["API_KEY"]) {
+      process.env["API_KEY"] = localEnv["API_KEY"];
+    }
+  }
+
+  return {
+    plugins: [
+      tailwindcss(),
+      tsconfigPaths({ projects: ["./tsconfig.json"] }),
+      tanstackStart({
+        importProtection: {
+          behavior: "error",
+          client: { files: ["**/server/**"], specifiers: ["server-only"] },
+        },
+        server: { entry: "server" },
+      }),
+      nitro({ defaultPreset: process.env.VERCEL ? "vercel" : "cloudflare-module" }),
+      react(),
     ],
-  },
-  optimizeDeps: {
-    include: ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime"],
-    ignoreOutdatedRequests: true,
-  },
-  server: { host: "::", port: 8080 },
+    resolve: {
+      alias: { "@": resolve(rootDirectory, "src") },
+      dedupe: [
+        "react",
+        "react-dom",
+        "react/jsx-runtime",
+        "react/jsx-dev-runtime",
+        "@tanstack/react-query",
+        "@tanstack/query-core",
+      ],
+    },
+    optimizeDeps: {
+      include: [
+        "react",
+        "react-dom",
+        "react-dom/client",
+        "react/jsx-runtime",
+        "react/jsx-dev-runtime",
+      ],
+      ignoreOutdatedRequests: true,
+    },
+    server: { host: "::", port: 8080 },
+  };
 });

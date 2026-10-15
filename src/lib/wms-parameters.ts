@@ -24,6 +24,7 @@ const statusOrdem: OpcaoParametroEship[] = [
   { id: "11", descricao: "Devolvida" },
 ];
 
+export const STATUS_ORDEM = statusOrdem;
 export const STATUS_ORDEM_OPERACIONAIS = statusOrdem.filter(({ id }) => Number(id) <= 9);
 
 const tipoOrdem: OpcaoParametroEship[] = [
