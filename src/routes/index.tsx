@@ -1,21 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PainelModulo } from "@/components/PainelModulo";
-import { consultarWms } from "@/lib/wms.functions";
+import { consultarDashboardWms } from "@/lib/wms.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Painel Operacional WMS" },
+      { title: "Dashboard WMS" },
       {
         name: "description",
         content:
-          "Painel de acompanhamento em tempo real da operação logística: ordens, valores e fila do WMS.",
+          "Dashboard de acompanhamento em tempo real da operação logística: ordens, valores e filas do WMS.",
       },
-      { property: "og:title", content: "Painel Operacional WMS" },
+      { property: "og:title", content: "Dashboard WMS" },
       {
         property: "og:description",
         content:
-          "Acompanhamento em tempo real de ordens, valores e fila da operação logística.",
+          "Acompanhamento em tempo real de ordens, valores por fila e fretes por status da operação logística.",
       },
     ],
   }),
@@ -25,10 +25,11 @@ export const Route = createFileRoute("/")({
 function Painel() {
   return (
     <PainelModulo
-      titulo="PAINEL OPERACIONAL WMS"
+      titulo="DASHBOARD WMS"
       subtitulo="Acompanhamento em tempo real da operação"
-      consultar={consultarWms}
+      consultar={consultarDashboardWms}
       configuracaoId="painel-operacional"
+      exibirGraficos
     />
   );
 }

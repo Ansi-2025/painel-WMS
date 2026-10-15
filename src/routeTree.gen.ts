@@ -11,10 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ConfiguracaoRouteImport } from './routes/configuracao'
-import { Route as EstoqueRouteImport } from './routes/estoque'
-import { Route as ExpedicaoRouteImport } from './routes/expedicao'
-import { Route as IndicadoresRouteImport } from './routes/indicadores'
-import { Route as MonitoramentoRouteImport } from './routes/monitoramento'
 import { Route as ModuloIdRouteImport } from './routes/modulo.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -27,26 +23,6 @@ const ConfiguracaoRoute = ConfiguracaoRouteImport.update({
   path: '/configuracao',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EstoqueRoute = EstoqueRouteImport.update({
-  id: '/estoque',
-  path: '/estoque',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ExpedicaoRoute = ExpedicaoRouteImport.update({
-  id: '/expedicao',
-  path: '/expedicao',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndicadoresRoute = IndicadoresRouteImport.update({
-  id: '/indicadores',
-  path: '/indicadores',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MonitoramentoRoute = MonitoramentoRouteImport.update({
-  id: '/monitoramento',
-  path: '/monitoramento',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ModuloIdRoute = ModuloIdRouteImport.update({
   id: '/modulo/$id',
   path: '/modulo/$id',
@@ -56,68 +32,30 @@ const ModuloIdRoute = ModuloIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/configuracao': typeof ConfiguracaoRoute
-  '/estoque': typeof EstoqueRoute
-  '/expedicao': typeof ExpedicaoRoute
-  '/indicadores': typeof IndicadoresRoute
-  '/monitoramento': typeof MonitoramentoRoute
   '/modulo/$id': typeof ModuloIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/configuracao': typeof ConfiguracaoRoute
-  '/estoque': typeof EstoqueRoute
-  '/expedicao': typeof ExpedicaoRoute
-  '/indicadores': typeof IndicadoresRoute
-  '/monitoramento': typeof MonitoramentoRoute
   '/modulo/$id': typeof ModuloIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/configuracao': typeof ConfiguracaoRoute
-  '/estoque': typeof EstoqueRoute
-  '/expedicao': typeof ExpedicaoRoute
-  '/indicadores': typeof IndicadoresRoute
-  '/monitoramento': typeof MonitoramentoRoute
   '/modulo/$id': typeof ModuloIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/configuracao'
-    | '/estoque'
-    | '/expedicao'
-    | '/indicadores'
-    | '/monitoramento'
-    | '/modulo/$id'
+  fullPaths: '/' | '/configuracao' | '/modulo/$id'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/configuracao'
-    | '/estoque'
-    | '/expedicao'
-    | '/indicadores'
-    | '/monitoramento'
-    | '/modulo/$id'
-  id:
-    | '__root__'
-    | '/'
-    | '/configuracao'
-    | '/estoque'
-    | '/expedicao'
-    | '/indicadores'
-    | '/monitoramento'
-    | '/modulo/$id'
+  to: '/' | '/configuracao' | '/modulo/$id'
+  id: '__root__' | '/' | '/configuracao' | '/modulo/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ConfiguracaoRoute: typeof ConfiguracaoRoute
-  EstoqueRoute: typeof EstoqueRoute
-  ExpedicaoRoute: typeof ExpedicaoRoute
-  IndicadoresRoute: typeof IndicadoresRoute
-  MonitoramentoRoute: typeof MonitoramentoRoute
   ModuloIdRoute: typeof ModuloIdRoute
 }
 
@@ -137,34 +75,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfiguracaoRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/estoque': {
-      id: '/estoque'
-      path: '/estoque'
-      fullPath: '/estoque'
-      preLoaderRoute: typeof EstoqueRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/expedicao': {
-      id: '/expedicao'
-      path: '/expedicao'
-      fullPath: '/expedicao'
-      preLoaderRoute: typeof ExpedicaoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/indicadores': {
-      id: '/indicadores'
-      path: '/indicadores'
-      fullPath: '/indicadores'
-      preLoaderRoute: typeof IndicadoresRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/monitoramento': {
-      id: '/monitoramento'
-      path: '/monitoramento'
-      fullPath: '/monitoramento'
-      preLoaderRoute: typeof MonitoramentoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/modulo/$id': {
       id: '/modulo/$id'
       path: '/modulo/$id'
@@ -178,10 +88,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConfiguracaoRoute: ConfiguracaoRoute,
-  EstoqueRoute: EstoqueRoute,
-  ExpedicaoRoute: ExpedicaoRoute,
-  IndicadoresRoute: IndicadoresRoute,
-  MonitoramentoRoute: MonitoramentoRoute,
   ModuloIdRoute: ModuloIdRoute,
 }
 export const routeTree = rootRouteImport

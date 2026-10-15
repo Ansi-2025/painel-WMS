@@ -1,6 +1,6 @@
-# Painel Operacional WMS
+# Dashboard WMS
 
-Dashboard operacional para consulta de ordens, expedição, estoque, indicadores e monitoramento via API E-SHIP.
+Dashboard operacional para acompanhar ordens por fila e valores de frete por status via API E-SHIP.
 
 Aplicação publicada em: https://painelwms.vercel.app
 

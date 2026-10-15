@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { OrdemWMS } from "./wms-api";
+import { paraNumero, type OrdemWMS } from "./wms-api";
+import { STATUS_ORDEM_OPERACIONAIS } from "./wms-parameters";
 import { ConsultaEshipSchema, type ConsultaEship } from "./wms-config";
 
 // A chave ESHIP_API_KEY existe somente no ambiente do servidor.
@@ -119,9 +120,56 @@ async function consultarEship(consulta: ConsultaEship): Promise<{ ordens: OrdemW
       infosAdicionais: o.infosAdicionais
         ? {
             valordaordem: o.infosAdicionais.valordaordem,
+            valorfrete: o.infosAdicionais.valorfrete,
             fila: o.infosAdicionais.fila,
           }
         : undefined,
+    })),
+  };
+}
+
+type FretePorStatus = {
+  id: string;
+  nome: string;
+  valor: number;
+};
+
+async function consultarDashboard(
+  consulta: ConsultaEship,
+): Promise<{ ordens: OrdemWMS[]; fretesPorStatus: FretePorStatus[] }> {
+  const parametroStatus = consulta.parametros["statusOrdem"]?.trim();
+  const statusSelecionados = parametroStatus
+    ? new Set(parametroStatus.match(/\d+/g) ?? [])
+    : new Set(STATUS_ORDEM_OPERACIONAIS.map(({ id }) => id));
+  const status = STATUS_ORDEM_OPERACIONAIS.filter(({ id }) => statusSelecionados.has(id));
+  const resultados: { status: (typeof status)[number]; ordens: OrdemWMS[] }[] = [];
+  let proximoStatus = 0;
+
+  async function consultarProximoStatus(): Promise<void> {
+    while (proximoStatus < status.length) {
+      const indice = proximoStatus;
+      proximoStatus += 1;
+      const itemStatus = status[indice];
+      if (!itemStatus) continue;
+
+      const resultado = await consultarEship({
+        ...consulta,
+        parametros: { ...consulta.parametros, ["statusOrdem"]: `[${itemStatus.id}]` },
+      });
+      resultados[indice] = { status: itemStatus, ordens: resultado.ordens };
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(3, status.length) }, () => consultarProximoStatus()),
+  );
+
+  return {
+    ordens: resultados.flatMap((resultado) => resultado.ordens),
+    fretesPorStatus: resultados.map(({ status: itemStatus, ordens }) => ({
+      id: itemStatus.id,
+      nome: itemStatus.descricao,
+      valor: ordens.reduce((total, ordem) => total + paraNumero(ordem.infosAdicionais?.valorfrete), 0),
     })),
   };
 }
@@ -130,10 +178,9 @@ export const consultarWms = createServerFn({ method: "POST" })
   .validator((data) => ConsultaEshipSchema.parse(data))
   .handler(({ data }) => consultarEship(data));
 
-export const consultarExpedicao = consultarWms;
-export const consultarEstoque = consultarWms;
-export const consultarIndicadores = consultarWms;
-export const consultarMonitoramento = consultarWms;
+export const consultarDashboardWms = createServerFn({ method: "POST" })
+  .validator((data) => ConsultaEshipSchema.parse(data))
+  .handler(({ data }) => consultarDashboard(data));
 
 export const consultarFuncao = createServerFn({ method: "POST" })
   .validator((data) => ConsultaEshipSchema.parse(data))

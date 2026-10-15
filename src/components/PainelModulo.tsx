@@ -16,6 +16,7 @@ import {
   type DragEvent,
   type FormEvent,
 } from "react";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { z } from "zod";
 import { BarraModulos } from "@/components/BarraModulos";
 import { ConfiguracaoConsultaModulo } from "@/components/ConfiguracaoConsultaModulo";
@@ -28,6 +29,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import {
   agruparOrdensPorFila,
   formatarHora,
@@ -61,6 +68,15 @@ import {
 const INTERVALO_SEGUNDOS = 30;
 const CHAVE_CARTOES_PERSONALIZADOS = "wms-cartoes-personalizados";
 const CHAVE_LAYOUT_CARTOES = "wms-layout-cartoes";
+const CONFIGURACAO_GRAFICO_VALORES: ChartConfig = {
+  valor: { label: "Valor", color: "var(--chart-1)" },
+};
+
+type FretePorStatus = {
+  id: string;
+  nome: string;
+  valor: number;
+};
 
 type LayoutCartao = {
   largura: number;
@@ -195,7 +211,10 @@ function validarCartaoPersonalizado(valor: unknown): valor is CartaoPersonalizad
   );
 }
 
-type ConsultaFn = (options: { data: ConsultaEship }) => Promise<{ ordens: OrdemWMS[] }>;
+type ConsultaFn = (options: { data: ConsultaEship }) => Promise<{
+  ordens: OrdemWMS[];
+  fretesPorStatus?: FretePorStatus[];
+}>;
 
 export function PainelModulo({
   titulo,
@@ -203,14 +222,17 @@ export function PainelModulo({
   consultar,
   configuracaoId,
   configuracaoConsulta,
+  exibirGraficos = false,
 }: {
   titulo: string;
   subtitulo: string;
   consultar: ConsultaFn;
   configuracaoId: string;
   configuracaoConsulta?: ConsultaEship;
+  exibirGraficos?: boolean;
 }) {
   const [ordens, setOrdens] = useState<OrdemWMS[]>([]);
+  const [fretesPorStatus, setFretesPorStatus] = useState<FretePorStatus[]>([]);
   const [apiAtiva, setApiAtiva] = useState(true);
   const [preferenciaApiCarregada, setPreferenciaApiCarregada] = useState(false);
   const [conectado, setConectado] = useState(true);
@@ -290,6 +312,7 @@ export function PainelModulo({
     try {
       const dados = await consultarAPI({ data: consulta });
       setOrdens(dados.ordens);
+      setFretesPorStatus(dados.fretesPorStatus ?? []);
       setConectado(true);
       setAtualizadoEm(formatarHora(new Date()));
     } catch {
@@ -449,6 +472,13 @@ export function PainelModulo({
   }
 
   const filas = agruparOrdensPorFila(ordens);
+  const valoresPorFila = [...filas]
+    .sort((a, b) => b.valorTotal - a.valorTotal || a.nome.localeCompare(b.nome, "pt-BR"))
+    .map(({ nome, valorTotal: total, quantidade }) => ({
+      nome,
+      valor: total,
+      quantidade,
+    }));
   const ordensComFila = filas.reduce((totalFilas, fila) => totalFilas + fila.quantidade, 0);
   const filaMaisComum = filas[0];
   const valoresIndicadores: Record<IndicadorCartao, string> = {
@@ -462,31 +492,6 @@ export function PainelModulo({
     maiorValor: formatarMoeda(maiorValor(ordens)),
   };
   const definicoesCartoes: DefinicaoCartao[] = [
-    {
-      id: "ordens",
-      titulo: "ORDENS",
-      valor: valoresIndicadores.ordens,
-      descricao: "Ordens retornadas pela API",
-    },
-    {
-      id: "infos-adicionais",
-      titulo: "INFOS ADICIONAIS",
-      valor: valoresIndicadores.infosAdicionais,
-      descricao: "Registros com informações adicionais",
-    },
-    {
-      id: "valor-ordens",
-      titulo: "VALOR DAS ORDENS",
-      valor: valoresIndicadores.valorTotal,
-      descricao: "Valor total das ordens consultadas",
-      compacto: true,
-    },
-    {
-      id: "ordens-fila",
-      titulo: "ORDENS COM FILA",
-      valor: valoresIndicadores.ordensComFila,
-      descricao: "Ordens com uma fila atribuída",
-    },
     ...cartoesPersonalizados.map((cartao) => ({
       id: `personalizado-${cartao.id}`,
       titulo: cartao.titulo,
@@ -762,6 +767,36 @@ export function PainelModulo({
           </p>
         )}
 
+        {exibirGraficos && (
+          <section className="grid gap-4 md:grid-cols-3" aria-label="Resumo do dashboard">
+            <div className="panel border-l-4 border-l-primary px-5 py-5">
+              <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground">
+                VALOR DA ORDEM
+              </p>
+              <p className="mt-2 text-3xl font-bold tabular-nums text-foreground lg:text-4xl">
+                {formatarMoeda(valorTotal(ordens))}
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">Valor total das ordens consultadas</p>
+            </div>
+            <div className="panel border-l-4 border-l-primary px-5 py-5">
+              <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground">FILA</p>
+              <p className="mt-2 text-3xl font-bold text-foreground lg:text-4xl">
+                {filaMaisComum?.nome ?? "—"}
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">Fila com mais pedidos</p>
+            </div>
+            <div className="panel border-l-4 border-l-primary px-5 py-5">
+              <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground">
+                TOTAL DE PEDIDOS
+              </p>
+              <p className="mt-2 text-3xl font-bold tabular-nums text-foreground lg:text-4xl">
+                {formatarInteiro(totalOrdens(ordens))}
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">Pedidos retornados pela API</p>
+            </div>
+          </section>
+        )}
+
         <div
           className={[
             "dashboard-cards-grid gap-4 lg:gap-6",
@@ -805,6 +840,92 @@ export function PainelModulo({
             />
           ))}
         </div>
+
+        {exibirGraficos && (
+          <section className="grid gap-4 xl:grid-cols-2" aria-label="Indicadores do dashboard">
+            <div className="panel min-w-0 p-5">
+              <h2 className="mb-4 text-base font-semibold text-foreground">Valor das ordens por fila</h2>
+              {valoresPorFila.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <ChartContainer
+                    config={CONFIGURACAO_GRAFICO_VALORES}
+                    className="h-[340px] aspect-auto"
+                    style={{ minWidth: `${Math.max(640, valoresPorFila.length * 76)}px` }}
+                  >
+                    <BarChart data={valoresPorFila} margin={{ top: 12, right: 16, left: 8, bottom: 66 }}>
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="nome"
+                        angle={-35}
+                        textAnchor="end"
+                        interval={0}
+                        height={78}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis
+                        tickFormatter={(valor: number) =>
+                          new Intl.NumberFormat("pt-BR", { notation: "compact" }).format(valor)
+                        }
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <ChartTooltip
+                        cursor={false}
+                        content={
+                          <ChartTooltipContent
+                            formatter={(valor) => formatarMoeda(Number(valor))}
+                            labelFormatter={(nome, payload) => {
+                              const quantidade = payload[0]?.payload.quantidade;
+                              return `${nome} · ${formatarInteiro(Number(quantidade ?? 0))} ordens`;
+                            }}
+                          />
+                        }
+                      />
+                      <Bar dataKey="valor" fill="var(--color-valor)" radius={4} />
+                    </BarChart>
+                  </ChartContainer>
+                </div>
+              ) : (
+                <p className="flex h-[340px] items-center justify-center text-sm text-muted-foreground">
+                  Nenhuma fila encontrada no retorno da API.
+                </p>
+              )}
+            </div>
+
+            <div className="panel min-w-0 p-5">
+              <h2 className="mb-4 text-base font-semibold text-foreground">Valor do frete por status</h2>
+              {fretesPorStatus.length > 0 ? (
+                <ChartContainer config={CONFIGURACAO_GRAFICO_VALORES} className="h-[340px] aspect-auto">
+                  <BarChart data={fretesPorStatus} margin={{ top: 12, right: 16, left: 8, bottom: 20 }}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis dataKey="nome" interval={0} tickLine={false} axisLine={false} />
+                    <YAxis
+                      tickFormatter={(valor: number) =>
+                        new Intl.NumberFormat("pt-BR", { notation: "compact" }).format(valor)
+                      }
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <ChartTooltip
+                      cursor={false}
+                      content={
+                        <ChartTooltipContent
+                          formatter={(valor) => formatarMoeda(Number(valor))}
+                        />
+                      }
+                    />
+                    <Bar dataKey="valor" fill="var(--color-valor)" radius={4} />
+                  </BarChart>
+                </ChartContainer>
+              ) : (
+                <p className="flex h-[340px] items-center justify-center text-sm text-muted-foreground">
+                  Nenhum frete encontrado para os status selecionados.
+                </p>
+              )}
+            </div>
+          </section>
+        )}
 
         <footer className="panel px-5 py-3 text-center text-sm tracking-[0.14em] text-muted-foreground">
           {apiAtiva ? (
@@ -983,4 +1104,3 @@ function Card({
     </div>
   );
 }
-

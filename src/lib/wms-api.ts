@@ -1,11 +1,6 @@
 import { PARAMETROS_ESHIP } from "@/lib/wms-parameters";
 
-/**
- * Camada de dados do Painel Operacional WMS.
- *
- * Hoje retorna um JSON mockado. Para conectar a API real do WMS,
- * substitua o corpo de `consultarAPI()` pelo fetch indicado abaixo.
- */
+/** Tipos e agregações dos dados de ordens retornados pela API WMS. */
 
 export interface InfosAdicionais {
   norigem?: string;
@@ -15,7 +10,7 @@ export interface InfosAdicionais {
   condicaopagamento?: string;
   depositoretirada?: string;
   alterartransporte?: string;
-  valorfrete?: string;
+  valorfrete?: string | undefined;
   transportealterado?: string;
   fila?: string | undefined;
   peso?: string;
@@ -41,7 +36,10 @@ export interface RespostaWMS {
 
 export function paraNumero(valor?: string): number {
   if (!valor) return 0;
-  const limpo = valor.trim().replace(/\./g, "").replace(",", ".");
+  const texto = valor.trim();
+  const limpo = texto.includes(",")
+    ? texto.replace(/\./g, "").replace(",", ".")
+    : texto;
   const n = Number(limpo);
   return Number.isFinite(n) ? n : 0;
 }
@@ -66,6 +64,7 @@ export type FilaAgrupada = {
   id: string;
   nome: string;
   quantidade: number;
+  valorTotal: number;
 };
 
 const nomesFilas = new Map(
@@ -81,19 +80,37 @@ export function obterIdFila(fila?: string): string {
 export function nomeFila(fila?: string): string {
   const id = obterIdFila(fila);
   if (!id) return "Sem fila";
-  return nomesFilas.get(id) ?? `Fila ${id}`;
+  return nomesFilas.get(id) ?? "Fila não identificada";
 }
 
 export function agruparOrdensPorFila(ordens: OrdemWMS[]): FilaAgrupada[] {
-  const contagens = new Map<string, number>();
+  const contagens = new Map<string, FilaAgrupada>();
   for (const ordem of ordens) {
     const id = obterIdFila(ordem.infosAdicionais?.fila);
-    if (id) contagens.set(id, (contagens.get(id) ?? 0) + 1);
+    if (!id) continue;
+    const nome = nomeFila(id);
+    const existente = contagens.get(id);
+    if (existente) {
+      existente.quantidade += 1;
+      existente.valorTotal += paraNumero(ordem.infosAdicionais?.valordaordem);
+    } else {
+      contagens.set(id, {
+        id,
+        nome,
+        quantidade: 1,
+        valorTotal: paraNumero(ordem.infosAdicionais?.valordaordem),
+      });
+    }
   }
 
-  return [...contagens.entries()]
-    .map(([id, quantidade]) => ({ id, nome: nomeFila(id), quantidade }))
-    .sort((a, b) => b.quantidade - a.quantidade || a.nome.localeCompare(b.nome, "pt-BR"));
+  let indiceFilaSemDescricao = 0;
+  return [...contagens.values()]
+    .sort((a, b) => b.quantidade - a.quantidade || a.nome.localeCompare(b.nome, "pt-BR"))
+    .map((fila) =>
+      fila.nome === "Fila não identificada"
+        ? { ...fila, nome: `Fila sem descrição ${++indiceFilaSemDescricao}` }
+        : fila,
+    );
 }
 
 export function maiorValor(ordens: OrdemWMS[]): number {

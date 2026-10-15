@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Activity, Boxes, ChartColumn, LayoutDashboard, Settings2, Truck } from "lucide-react";
+import { LayoutDashboard, Settings2 } from "lucide-react";
 import {
   assinarModulosPersonalizados,
   listarModulosPersonalizados,
@@ -8,11 +8,7 @@ import {
 } from "@/lib/wms-config";
 
 export const MODULOS = [
-  { nome: "Painel Operacional", icone: LayoutDashboard, to: "/" },
-  { nome: "Expedição", icone: Truck, to: "/expedicao" },
-  { nome: "Estoque", icone: Boxes, to: "/estoque" },
-  { nome: "Indicadores", icone: ChartColumn, to: "/indicadores" },
-  { nome: "Monitoramento", icone: Activity, to: "/monitoramento" },
+  { nome: "Dashboard", icone: LayoutDashboard, to: "/" },
   { nome: "Configuração", icone: Settings2, to: "/configuracao" },
 ] as const;
 

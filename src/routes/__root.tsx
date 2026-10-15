@@ -73,16 +73,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Painel Operacional WMS" },
+      { title: "Dashboard WMS" },
       {
         name: "description",
-        content: "Painel operacional WMS para acompanhamento de ordens e indicadores logísticos.",
+        content: "Dashboard WMS para acompanhamento de ordens e indicadores logísticos.",
       },
       { name: "author", content: "E-SHIP" },
-      { property: "og:title", content: "Painel Operacional WMS" },
+      { property: "og:title", content: "Dashboard WMS" },
       {
         property: "og:description",
-        content: "Painel operacional WMS para acompanhamento de ordens e indicadores logísticos.",
+        content: "Dashboard WMS para acompanhamento de ordens e indicadores logísticos.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

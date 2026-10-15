@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { STATUS_ORDEM_OPERACIONAIS } from "@/lib/wms-parameters";
 
 const parametrosSchema = z
   .record(z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_]{0,59}$/), z.string().max(500))
@@ -13,7 +14,7 @@ const parametrosSchema = z
       }
     }
   })
-  .transform((parametros) => ({ incluirInfo: "true", ...parametros }));
+  .transform((parametros): Record<string, string> => ({ incluirInfo: "true", ...parametros }));
 
 export const ConfiguracaoConsultaModuloSchema = z.object({
   funcao: z.string().trim().min(1).max(120),
@@ -44,7 +45,7 @@ export const CONFIGURACAO_WMS_PADRAO: ConfiguracaoWms = {
   funcao: "webServiceGetInfosOrdem",
   parametros: {
     incluirInfo: "true",
-    statusOrdem: "[4]",
+    statusOrdem: `[${STATUS_ORDEM_OPERACIONAIS.map(({ id }) => id).join(",")}]`,
     tipoOrdem: "[12,10,20,14,4,13,6,2]",
     pagina: "1",
     quantidadeRegistros: "100",
