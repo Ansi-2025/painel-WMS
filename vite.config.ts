@@ -12,8 +12,10 @@ const rootDirectory = fileURLToPath(new URL(".", import.meta.url));
 export default defineConfig(({ mode }) => {
   if (mode === "development") {
     const localEnv = loadEnv(mode, rootDirectory, "");
-    if (!process.env["API_KEY"] && localEnv["API_KEY"]) {
-      process.env["API_KEY"] = localEnv["API_KEY"];
+    for (const name of ["API_KEY", "USER_CONTROLER"] as const) {
+      if (!process.env[name] && localEnv[name]) {
+        process.env[name] = localEnv[name];
+      }
     }
   }
 

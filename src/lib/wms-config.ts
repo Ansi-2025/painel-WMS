@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { STATUS_ORDEM_OPERACIONAIS } from "@/lib/wms-parameters";
+import {
+  ARMAZEM_BRANCO01_ID,
+  STATUS_ORDEM_OPERACIONAIS,
+  TIPOS_ORDEM_PADRAO_DASHBOARD,
+} from "@/lib/wms-parameters";
 
 const parametrosSchema = z
   .record(z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_]{0,59}$/), z.string().max(500))
@@ -42,7 +46,8 @@ export const CONFIGURACAO_WMS_PADRAO: ConfiguracaoWms = {
   parametros: {
     incluirInfo: "true",
     statusOrdem: `[${STATUS_ORDEM_OPERACIONAIS.map(({ id }) => id).join(",")}]`,
-    tipoOrdem: "[12,10,20,14,4,13,6,2]",
+    tipoOrdem: `[${TIPOS_ORDEM_PADRAO_DASHBOARD.join(",")}]`,
+    armazem: ARMAZEM_BRANCO01_ID,
     pagina: "1",
     quantidadeRegistros: "100",
     ordenacao: "2",

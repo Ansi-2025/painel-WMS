@@ -56,19 +56,19 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
 
   return (
     <section
-      className="panel order-2 flex min-w-0 flex-col p-4 lg:p-5 xl:col-span-6 2xl:col-span-7"
+      className="panel order-2 flex min-w-0 flex-col p-3 lg:p-4 xl:order-5 xl:col-span-7 2xl:col-span-7"
       aria-label="Distribuição das ordens pelo estado do destinatário"
     >
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <h2 className="text-xl font-semibold text-foreground">
+          <h2 className="text-lg font-semibold text-foreground">
             Distribuição das ordens por estado
           </h2>
-          <p className="mt-1 text-base text-muted-foreground">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             Estado do destinatário no endereço do cliente
           </p>
         </div>
-        <p className="text-sm font-semibold tabular-nums text-foreground">
+        <p className="text-xs font-semibold tabular-nums text-foreground">
           {formatarQuantidade.format(totalPedidos)} ordens mapeadas ·{" "}
           {formatadorValorCompacto.format(
             estados.reduce((total, estado) => total + estado.valor, 0),
@@ -77,7 +77,7 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
       </div>
 
       <div className="grid min-h-0 flex-1 items-center gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="flex h-[280px] min-w-0 items-center justify-center sm:h-[360px] lg:h-[500px]">
+        <div className="flex h-[250px] min-w-0 items-center justify-center sm:h-[300px] lg:h-[320px] 2xl:h-[400px]">
           <svg
             ref={mapaRef}
             viewBox={brazilMap.viewBox}
@@ -131,16 +131,16 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
           </svg>
         </div>
 
-        <div className="flex min-w-0 flex-col gap-3">
-          <div className="rounded-xl border border-border/70 bg-background/30 p-3 sm:p-4">
-            <h3 className="mb-3 text-base font-semibold uppercase tracking-wide text-muted-foreground">
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="rounded-xl border border-border/70 bg-background/30 p-2.5 sm:p-3">
+            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               Top 5 estados
             </h3>
             {maioresEstados.length > 0 ? (
-              <ol className="space-y-3 sm:space-y-4">
+              <ol className="space-y-2">
                 {maioresEstados.map((estado) => (
                   <li key={estado.uf} className="grid grid-cols-[2rem_minmax(0,1fr)_5rem] gap-3">
-                    <span className="text-base font-semibold text-foreground">{estado.uf}</span>
+                    <span className="text-sm font-semibold text-foreground">{estado.uf}</span>
                     <span className="h-4 overflow-hidden rounded bg-muted/60">
                       <span
                         className="block h-full rounded bg-primary"
@@ -149,7 +149,7 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
                         }}
                       />
                     </span>
-                    <span className="text-right text-base tabular-nums text-foreground">
+                    <span className="text-right text-sm tabular-nums text-foreground">
                       {formatarQuantidade.format(estado.quantidade)}
                       <span className="block font-normal text-muted-foreground">
                         {formatadorValorCompacto.format(estado.valor)}
@@ -163,11 +163,11 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
             )}
           </div>
 
-          <div className="rounded-xl border border-border/70 bg-background/30 p-3">
-            <h3 className="mb-2 text-base font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="rounded-xl border border-border/70 bg-background/30 p-2.5">
+            <h3 className="mb-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               Pedidos por estado
             </h3>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-base text-muted-foreground">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
               {[
                 { label: "100+", color: CORES_MAPA[4] },
                 { label: "50–99", color: CORES_MAPA[3] },

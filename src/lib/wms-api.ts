@@ -19,6 +19,7 @@ export interface InfosAdicionais {
 export interface OrdemWMS {
   ordem: number;
   codigo: string;
+  dataHora?: string;
   statusId?: string;
   estadoDestinatario?: {
     uf: string;

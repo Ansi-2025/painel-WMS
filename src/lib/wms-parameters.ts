@@ -18,35 +18,26 @@ const statusOrdem: OpcaoParametroEship[] = [
   { id: "5", descricao: "Aguardando documentação" },
   { id: "6", descricao: "Aguardando Expedição" },
   { id: "7", descricao: "Em Expedição" },
-  { id: "8", descricao: "Concluída/Despachada" },
-  { id: "9", descricao: "Aguardando reenvio" },
   { id: "10", descricao: "Cancelada" },
-  { id: "11", descricao: "Devolvida" },
 ];
 
 export const STATUS_ORDEM = statusOrdem;
 export const STATUS_ORDEM_OPERACIONAIS = statusOrdem.filter(({ id }) => Number(id) <= 9);
+export const ARMAZEM_BRANCO01_ID = "10";
 
-const tipoOrdem: OpcaoParametroEship[] = [
-  { id: "1", descricao: "Produção" },
-  { id: "2", descricao: "Venda" },
-  { id: "3", descricao: "Transferência" },
+export const TIPO_ORDEM: OpcaoParametroEship[] = [
   { id: "4", descricao: "Montagem" },
   { id: "5", descricao: "Requisição" },
   { id: "6", descricao: "Suframa" },
   { id: "7", descricao: "Embalagem" },
-  { id: "8", descricao: "sdfasdf" },
-  { id: "9", descricao: "Sucata" },
   { id: "10", descricao: "Difal" },
-  { id: "11", descricao: "Manutenção" },
   { id: "12", descricao: "Agendamento" },
   { id: "13", descricao: "SAC" },
   { id: "14", descricao: "Exportação" },
-  { id: "15", descricao: "Ressuprimento" },
   { id: "20", descricao: "Ecommerce" },
-  { id: "21", descricao: "Transformação" },
-  { id: "22", descricao: "Agrupamento" },
 ];
+
+export const TIPOS_ORDEM_PADRAO_DASHBOARD = ["4", "6", "10", "12", "13", "20"] as const;
 
 const periodo: OpcaoParametroEship[] = [
   { id: "10004", descricao: "Hoje" },
@@ -144,7 +135,7 @@ const filas: OpcaoParametroEship[] = [
 ].map(([id, descricao]) => ({ id: String(id), descricao: String(descricao) }));
 
 const armazens: OpcaoParametroEship[] = [
-  { id: "10", descricao: "BRANCO01" },
+  { id: ARMAZEM_BRANCO01_ID, descricao: "BRANCO01" },
   { id: "54", descricao: "TREINAMENTO" },
 ];
 
@@ -210,7 +201,7 @@ export const PARAMETROS_ESHIP: DefinicaoParametroEship[] = [
   { chave: "ordem", descricao: "Ordem", tipo: "STRING", grupo: "Consulta geral" },
   { chave: "tipoFrete", descricao: "Tipo de frete", tipo: "STRING", grupo: "Consulta geral" },
   { chave: "statusOrdem", descricao: "Status da ordem", tipo: "INT", grupo: "Consulta geral", opcoes: statusOrdem, multiplo: true },
-  { chave: "tipoOrdem", descricao: "Tipo de ordem", tipo: "INT", grupo: "Consulta geral", opcoes: tipoOrdem, multiplo: true },
+  { chave: "tipoOrdem", descricao: "Tipo de ordem", tipo: "INT", grupo: "Consulta geral", opcoes: TIPO_ORDEM, multiplo: true },
   { chave: "numeroOrigem", descricao: "Número de origem", tipo: "STRING", grupo: "Consulta geral" },
   { chave: "criadoPor", descricao: "Criado por (ID do usuário)", tipo: "INT", grupo: "Consulta geral" },
   { chave: "incluirInfo", descricao: "Incluir informações detalhadas", tipo: "BOOL", grupo: "Consulta geral", obrigatorio: true, opcoes: [{ id: "true", descricao: "Sim" }, { id: "false", descricao: "Não" }] },

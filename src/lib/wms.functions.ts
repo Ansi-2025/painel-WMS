@@ -1,6 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { paraNumero, type OrdemWMS } from "./wms-api";
-import { STATUS_ORDEM, STATUS_ORDEM_OPERACIONAIS } from "./wms-parameters";
+import {
+  ARMAZEM_BRANCO01_ID,
+  STATUS_ORDEM,
+  STATUS_ORDEM_OPERACIONAIS,
+  TIPOS_ORDEM_PADRAO_DASHBOARD,
+} from "./wms-parameters";
 import { ConsultaEshipSchema, type ConsultaEship } from "./wms-config";
 import { exigirSessao } from "@/lib/server/auth.server";
 
@@ -17,9 +22,16 @@ type RespostaPaginaEship<T> = {
   };
 };
 
+type DataHoraEship = string | { date?: string } | null;
+
+type OrdemEship = Omit<OrdemWMS, "dataHora"> & {
+  dataHora?: DataHoraEship;
+};
+
 type OrdemDetalhadaEship = {
   id?: number | string;
   idStatus?: number | string;
+  dataHora?: DataHoraEship;
   status?: { id?: number | string; descricao?: string };
   enderecoDestinatario?: {
     municipio?: {
@@ -29,6 +41,7 @@ type OrdemDetalhadaEship = {
   ordem?: {
     id?: number | string;
     idStatus?: number | string;
+    dataHora?: DataHoraEship;
     status?: { id?: number | string; descricao?: string };
     enderecoDestinatario?: {
       municipio?: {
@@ -40,6 +53,12 @@ type OrdemDetalhadaEship = {
 
 function normalizarChavePaginacao(chave: string): string {
   return chave.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function normalizarDataHora(dataHora?: DataHoraEship): string | undefined {
+  if (typeof dataHora === "string") return dataHora;
+  if (dataHora && typeof dataHora.date === "string") return dataHora.date;
+  return undefined;
 }
 
 function obterNumeroPaginacao(
@@ -160,19 +179,23 @@ async function consultarPaginasEship<T>(consulta: ConsultaEship, funcao: string)
 }
 
 async function consultarEship(consulta: ConsultaEship): Promise<{ ordens: OrdemWMS[] }> {
-  const dados = await consultarPaginasEship<OrdemWMS>(consulta, consulta.funcao);
+  const dados = await consultarPaginasEship<OrdemEship>(consulta, consulta.funcao);
   return {
-    ordens: dados.map((o) => ({
-      ordem: o.ordem,
-      codigo: o.codigo,
-      infosAdicionais: o.infosAdicionais
-        ? {
-            valordaordem: o.infosAdicionais.valordaordem,
-            valorfrete: o.infosAdicionais.valorfrete,
-            fila: o.infosAdicionais.fila,
-          }
-        : undefined,
-    })),
+    ordens: dados.map((o) => {
+      const dataHora = normalizarDataHora(o.dataHora);
+      return {
+        ordem: o.ordem,
+        codigo: o.codigo,
+        ...(dataHora ? { dataHora } : {}),
+        infosAdicionais: o.infosAdicionais
+          ? {
+              valordaordem: o.infosAdicionais.valordaordem,
+              valorfrete: o.infosAdicionais.valorfrete,
+              fila: o.infosAdicionais.fila,
+            }
+          : undefined,
+      };
+    }),
   };
 }
 
@@ -211,10 +234,24 @@ function obterEstadoDestinatario(
   return { uf, nome };
 }
 
+function obterIntervaloHojeFortaleza(): { inicio: string; fim: string } {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Fortaleza",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const data = Object.fromEntries(partes.map(({ type, value }) => [type, value]));
+  const dia = `${data["year"]}-${data["month"]}-${data["day"]}`;
+  return { inicio: `${dia} 00:00:00`, fim: `${dia} 23:59:59` };
+}
+
 async function consultarDashboard(consulta: ConsultaEship): Promise<{
   ordens: OrdemWMS[];
   statusPedidos: StatusPedido[];
   fretesPorStatus: FretePorStatus[];
+  quantidadeCanceladasHoje: number;
+  valorCanceladasHoje: number;
 }> {
   const parametroStatus = consulta.parametros["statusOrdem"]?.trim();
   const statusSelecionados = parametroStatus
@@ -226,6 +263,8 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
       ordens: [],
       statusPedidos: [],
       fretesPorStatus: [],
+      quantidadeCanceladasHoje: 0,
+      valorCanceladasHoje: 0,
     };
   }
 
@@ -233,7 +272,10 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
     ...consulta,
     parametros: {
       ...consulta.parametros,
+      ["armazem"]: ARMAZEM_BRANCO01_ID,
       ["statusOrdem"]: `[${status.map(({ id }) => id).join(",")}]`,
+      ["tipoOrdem"]:
+        consulta.parametros["tipoOrdem"] ?? `[${TIPOS_ORDEM_PADRAO_DASHBOARD.join(",")}]`,
     },
   };
   const incrementarConfigurado = consultaDashboard.parametros["incrementar"]?.match(/\d+/g) ?? [];
@@ -244,12 +286,42 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
       ["incrementar"]: `[${[...new Set([...incrementarConfigurado, "75", "91"])].join(",")}]`,
     },
   };
-  const [resultadoInfos, ordensDetalhadas] = await Promise.all([
+  const intervaloHoje = obterIntervaloHojeFortaleza();
+  const consultaCanceladasHoje: ConsultaEship = {
+    ...consultaDashboard,
+    parametros: {
+      ...consultaDashboard.parametros,
+      ["statusOrdem"]: "[10]",
+      ["dataHoraInicialAtualizacao"]: intervaloHoje.inicio,
+      ["dataHoraFinalAtualizacao"]: intervaloHoje.fim,
+    },
+  };
+  const [resultadoInfos, ordensDetalhadas, resultadoCanceladasHoje] = await Promise.all([
     consultarEship(consultaDashboard),
     consultarPaginasEship<OrdemDetalhadaEship>(consultaDetalhada, "webServiceGetOrdem"),
+    consultarEship(consultaCanceladasHoje),
   ]);
+  const ordensUnicas = [
+    ...new Map(resultadoInfos.ordens.map((ordem) => [String(ordem.ordem), ordem])).values(),
+  ];
+  const ordensComValor = ordensUnicas.filter((ordem) =>
+    Boolean(ordem.infosAdicionais?.valordaordem?.trim()),
+  );
+  const ordensCanceladasHoje = [
+    ...new Map(
+      resultadoCanceladasHoje.ordens
+        .filter((ordem) => Boolean(ordem.infosAdicionais?.valordaordem?.trim()))
+        .map((ordem) => [String(ordem.ordem), ordem]),
+    ).values(),
+  ];
+  const valorCanceladasHoje = ordensCanceladasHoje.reduce(
+    (total, ordem) => total + paraNumero(ordem.infosAdicionais?.valordaordem),
+    0,
+  );
+  const quantidadeCanceladasHoje = ordensCanceladasHoje.length;
 
   const statusPorOrdem = new Map<string, { id: string; nome?: string }>();
+  const dataHoraPorOrdem = new Map<string, string>();
   const estadoDestinatarioPorOrdem = new Map<string, NonNullable<OrdemWMS["estadoDestinatario"]>>();
   const contagemPorStatus = new Map<string, number>();
   const nomePorStatus = new Map(status.map(({ id, descricao }) => [id, descricao]));
@@ -259,6 +331,8 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
     if (identificador === undefined || !statusOrdem || !statusSelecionados.has(statusOrdem.id))
       continue;
     statusPorOrdem.set(String(identificador), statusOrdem);
+    const dataHora = normalizarDataHora(ordem.dataHora ?? ordem.ordem?.dataHora);
+    if (dataHora) dataHoraPorOrdem.set(String(identificador), dataHora);
     const estadoDestinatario = obterEstadoDestinatario(ordem);
     if (estadoDestinatario) {
       estadoDestinatarioPorOrdem.set(String(identificador), estadoDestinatario);
@@ -266,12 +340,14 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
     if (statusOrdem.nome) nomePorStatus.set(statusOrdem.id, statusOrdem.nome);
   }
 
-  for (const statusOrdem of statusPorOrdem.values()) {
+  for (const ordem of ordensComValor) {
+    const statusOrdem = statusPorOrdem.get(String(ordem.ordem));
+    if (!statusOrdem) continue;
     contagemPorStatus.set(statusOrdem.id, (contagemPorStatus.get(statusOrdem.id) ?? 0) + 1);
   }
 
   const valorPorStatus = new Map<string, number>();
-  for (const ordem of resultadoInfos.ordens) {
+  for (const ordem of ordensComValor) {
     const identificador = String(ordem.ordem);
     const statusOrdem = statusPorOrdem.get(identificador);
     if (statusOrdem) {
@@ -282,7 +358,7 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
     }
   }
 
-  const ordensSemStatus = resultadoInfos.ordens.filter(
+  const ordensSemStatus = ordensComValor.filter(
     (ordem) => !statusPorOrdem.has(String(ordem.ordem)),
   );
   if (ordensSemStatus.length > 0) {
@@ -291,7 +367,7 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
   }
 
   const fretePorStatus = new Map<string, number>();
-  for (const ordem of resultadoInfos.ordens) {
+  for (const ordem of ordensComValor) {
     const statusOrdem = statusPorOrdem.get(String(ordem.ordem));
     if (!statusOrdem) continue;
     fretePorStatus.set(
@@ -300,12 +376,14 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
     );
   }
 
-  const ordensComStatus = resultadoInfos.ordens.map((ordem) => {
+  const ordensComStatus = ordensComValor.map((ordem) => {
     const identificador = String(ordem.ordem);
     const statusOrdem = statusPorOrdem.get(identificador);
+    const dataHora = dataHoraPorOrdem.get(identificador) ?? ordem.dataHora;
     const estadoDestinatario = estadoDestinatarioPorOrdem.get(identificador);
     return {
       ...ordem,
+      ...(dataHora ? { dataHora } : {}),
       ...(statusOrdem ? { statusId: statusOrdem.id } : {}),
       ...(estadoDestinatario ? { estadoDestinatario } : {}),
     };
@@ -324,6 +402,8 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
       nome: nomePorStatus.get(id) ?? descricao,
       valor: fretePorStatus.get(id) ?? 0,
     })),
+    quantidadeCanceladasHoje,
+    valorCanceladasHoje,
   };
 }
 

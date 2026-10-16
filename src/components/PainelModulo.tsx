@@ -1,5 +1,5 @@
 import { useServerFn } from "@tanstack/react-start";
-import { ClipboardList, Package, Search } from "lucide-react";
+import { CircleX, ClipboardList, Package, Search } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts";
 import { BarraModulos } from "@/components/BarraModulos";
@@ -34,13 +34,26 @@ import {
 const INTERVALO_SEGUNDOS = 120;
 const ATRASO_INICIO_CICLO_STATUS_MS = 20_000;
 const DURACAO_STATUS_MS = 15_000;
+const VALOR_CANCELADAS_HOJE_INICIAL = 0;
 const CONFIGURACAO_GRAFICO_VALORES: ChartConfig = {
   valor: { label: "Valor", color: "var(--chart-1)" },
+};
+const CONFIGURACAO_GRAFICO_IDADE: ChartConfig = {
+  quantidade: { label: "Ordens", color: "var(--chart-1)" },
 };
 const CONFIGURACAO_GRAFICO_PEDIDOS: ChartConfig = {
   quantidade: { label: "Pedidos", color: "var(--chart-1)" },
   valor: { label: "Valor total", color: "var(--chart-2)" },
 };
+const FAIXAS_IDADE_ORDENS = [
+  { id: "hoje", nome: "Hoje (até 24h)", rotulo: "Hoje" },
+  { id: "24-48-horas", nome: "24–48 horas", rotulo: "24–48h" },
+  { id: "48-72-horas", nome: "48–72 horas", rotulo: "48–72h" },
+  { id: "72-horas-4-dias", nome: "72h–4 dias", rotulo: "72h–4d" },
+  { id: "4-15-dias", nome: "4–15 dias", rotulo: "4–15d" },
+  { id: "16-30-dias", nome: "16–30 dias", rotulo: "16–30d" },
+  { id: "mais-30-dias", nome: "Mais de 30 dias", rotulo: ">30d" },
+] as const;
 const CARTOES_STATUS = [
   { id: "1", nome: "Lançados", estilo: "border-slate-300 bg-white text-slate-950" },
   { id: "2", nome: "Emitido", estilo: "border-blue-500 bg-blue-600 text-white" },
@@ -89,6 +102,58 @@ function corIndicadorFila(nome: string): string {
   return "bg-primary";
 }
 
+function horasDesdeCriacao(dataHora?: string): number | undefined {
+  const data = dataHora?.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?$/,
+  );
+  if (!data) return undefined;
+  const ano = Number(data[1]);
+  const mes = Number(data[2]);
+  const dia = Number(data[3]);
+  const hora = Number(data[4] ?? 0);
+  const minuto = Number(data[5] ?? 0);
+  const segundo = Number(data[6] ?? 0);
+  const milissegundo = Number((data[7] ?? "").slice(0, 3).padEnd(3, "0"));
+  const instanteOrdem = Date.UTC(ano, mes - 1, dia, hora, minuto, segundo, milissegundo);
+  const dataValidada = new Date(instanteOrdem);
+  if (
+    dataValidada.getUTCFullYear() !== ano ||
+    dataValidada.getUTCMonth() !== mes - 1 ||
+    dataValidada.getUTCDate() !== dia ||
+    hora > 23 ||
+    minuto > 59 ||
+    segundo > 59
+  ) {
+    return undefined;
+  }
+
+  const agoraFortaleza = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Fortaleza",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  })
+    .formatToParts(new Date())
+    .reduce<Record<string, number>>((partes, { type, value }) => {
+      if (type !== "literal") partes[type] = Number(value);
+      return partes;
+    }, {});
+  const instanteAtual = Date.UTC(
+    agoraFortaleza["year"]!,
+    agoraFortaleza["month"]! - 1,
+    agoraFortaleza["day"]!,
+    agoraFortaleza["hour"]!,
+    agoraFortaleza["minute"]!,
+    agoraFortaleza["second"]!,
+  );
+  const idadeEmHoras = Math.floor((instanteAtual - instanteOrdem) / 3_600_000);
+  return idadeEmHoras >= 0 ? idadeEmHoras : undefined;
+}
+
 type FretePorStatus = {
   id: string;
   nome: string;
@@ -106,6 +171,8 @@ type ConsultaFn = (options: { data: ConsultaEship }) => Promise<{
   ordens: OrdemWMS[];
   statusPedidos?: StatusPedido[];
   fretesPorStatus?: FretePorStatus[];
+  quantidadeCanceladasHoje?: number;
+  valorCanceladasHoje?: number;
 }>;
 
 export function PainelModulo({
@@ -125,6 +192,8 @@ export function PainelModulo({
   const [statusPedidos, setStatusPedidos] = useState<StatusPedido[]>([]);
   const [statusSelecionado, setStatusSelecionado] = useState<string | null>(null);
   const [fretesPorStatus, setFretesPorStatus] = useState<FretePorStatus[]>([]);
+  const [quantidadeCanceladasHoje, setQuantidadeCanceladasHoje] = useState(0);
+  const [valorCanceladasHoje, setValorCanceladasHoje] = useState(VALOR_CANCELADAS_HOJE_INICIAL);
   const [buscaFila, setBuscaFila] = useState("");
   const [apiAtiva, setApiAtiva] = useState(true);
   const [preferenciaApiCarregada, setPreferenciaApiCarregada] = useState(false);
@@ -183,6 +252,8 @@ export function PainelModulo({
       setOrdens(dados.ordens);
       setStatusPedidos(dados.statusPedidos ?? []);
       setFretesPorStatus(dados.fretesPorStatus ?? []);
+      setQuantidadeCanceladasHoje(dados.quantidadeCanceladasHoje ?? 0);
+      setValorCanceladasHoje(dados.valorCanceladasHoje ?? VALOR_CANCELADAS_HOJE_INICIAL);
       setConectado(true);
       setAtualizadoEm(formatarHora(new Date()));
     } catch {
@@ -238,6 +309,31 @@ export function PainelModulo({
   const ordensVisiveis = statusSelecionado
     ? ordens.filter((ordem) => ordem.statusId === statusSelecionado)
     : ordens;
+  const ordensPorIdade = FAIXAS_IDADE_ORDENS.map((faixa) => ({
+    ...faixa,
+    quantidade: 0,
+  }));
+  for (const ordem of ordensVisiveis) {
+    const idade = horasDesdeCriacao(ordem.dataHora);
+    if (idade === undefined) continue;
+    const dias = Math.floor(idade / 24);
+    const faixaId =
+      idade < 24
+        ? "hoje"
+        : idade < 48
+          ? "24-48-horas"
+          : idade < 72
+            ? "48-72-horas"
+            : dias < 4
+              ? "72-horas-4-dias"
+              : dias <= 15
+                ? "4-15-dias"
+                : dias <= 30
+                  ? "16-30-dias"
+                  : "mais-30-dias";
+    const faixa = ordensPorIdade.find(({ id }) => id === faixaId);
+    if (faixa) faixa.quantidade += 1;
+  }
   const statusPedidosVisiveis = statusSelecionado
     ? statusPedidos.filter((status) => status.id === statusSelecionado)
     : statusPedidos;
@@ -272,7 +368,7 @@ export function PainelModulo({
   return (
     <div className="min-h-screen bg-background text-foreground">
       <BarraModulos />
-      <div className="mx-auto flex min-h-screen w-full max-w-none flex-col gap-3 p-3 pb-20 sm:gap-4 sm:p-4 sm:pb-20 md:pl-20 lg:gap-6 lg:p-6 lg:pb-6 lg:pl-22">
+      <div className="mx-auto flex min-h-screen w-full max-w-none flex-col gap-3 p-3 pb-20 sm:gap-4 sm:p-4 sm:pb-20 md:pl-20 lg:gap-4 lg:p-5 lg:pb-5 lg:pl-22">
         <header className="panel flex flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-xl font-bold tracking-[0.12em] text-foreground lg:text-3xl">
@@ -318,7 +414,7 @@ export function PainelModulo({
 
         {exibirGraficos && (
           <section
-            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2"
+            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
             aria-label="Resumo do dashboard"
           >
             <div className="panel flex min-w-0 items-center gap-3 p-3 lg:p-3.5">
@@ -341,12 +437,28 @@ export function PainelModulo({
               </span>
               <div className="min-w-0">
                 <p className="text-sm font-semibold tracking-[0.12em] text-muted-foreground">
-                  TOTAL DE PEDIDOS
+                  TOTAL DE ORDEM
                 </p>
                 <p className="mt-0.5 text-2xl font-bold tabular-nums text-foreground lg:text-3xl">
                   {formatarInteiro(totalOrdens(ordensVisiveis))}
                 </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">Pedidos retornados pela API</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Ordens retornados pela API</p>
+              </div>
+            </div>
+            <div className="panel flex min-w-0 items-center gap-3 p-3 lg:p-3.5">
+              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-destructive/15 text-destructive lg:size-11">
+                <CircleX aria-hidden="true" className="size-5 lg:size-6" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold tracking-[0.12em] text-muted-foreground">
+                  VALOR CANCELADO HOJE
+                </p>
+                <p className="mt-0.5 break-words text-xl font-bold tabular-nums text-foreground lg:text-2xl">
+                  {formatarMoeda(valorCanceladasHoje)}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {formatarInteiro(quantidadeCanceladasHoje)} ordens canceladas hoje
+                </p>
               </div>
             </div>
           </section>
@@ -395,16 +507,16 @@ export function PainelModulo({
 
         {exibirGraficos && (
           <section className="grid gap-3 xl:grid-cols-12" aria-label="Indicadores do dashboard">
-            <div className="panel order-3 min-w-0 p-4 lg:p-5 xl:col-span-6 2xl:col-span-6">
-              <h2 className="mb-3 text-xl font-semibold text-foreground">Pedidos por status</h2>
+            <div className="panel order-3 min-w-0 p-3 lg:p-4 xl:order-2 xl:col-span-4">
+              <h2 className="mb-2 text-lg font-semibold text-foreground">Pedidos por status</h2>
               {statusPedidosVisiveis.length > 0 ? (
                 <ChartContainer
                   config={CONFIGURACAO_GRAFICO_PEDIDOS}
-                  className="h-[270px] aspect-auto sm:h-[300px]"
+                  className="h-[180px] aspect-auto sm:h-[200px]"
                 >
                   <BarChart
                     data={statusPedidosVisiveis}
-                    margin={{ top: 38, right: 8, left: 0, bottom: 74 }}
+                    margin={{ top: 32, right: 4, left: 0, bottom: 64 }}
                   >
                     <CartesianGrid vertical={false} strokeDasharray="3 3" />
                     <XAxis
@@ -416,7 +528,7 @@ export function PainelModulo({
                       height={94}
                       tickLine={false}
                       axisLine={false}
-                      tick={{ fontSize: 15 }}
+                      tick={{ fontSize: 12 }}
                     />
                     <YAxis
                       allowDecimals={false}
@@ -425,7 +537,7 @@ export function PainelModulo({
                       }
                       tickLine={false}
                       axisLine={false}
-                      tick={{ fontSize: 14 }}
+                      tick={{ fontSize: 12 }}
                     />
                     <ChartTooltip
                       cursor={false}
@@ -445,7 +557,7 @@ export function PainelModulo({
                         position="insideTop"
                         formatter={(quantidade: number) => formatarInteiro(quantidade)}
                         fill="white"
-                        fontSize={14}
+                        fontSize={12}
                         fontWeight={600}
                       />
                       <LabelList
@@ -453,7 +565,7 @@ export function PainelModulo({
                         position="top"
                         formatter={(valor: number) => formatarValorCompacto(valor)}
                         fill="var(--foreground)"
-                        fontSize={13}
+                        fontSize={11}
                         fontWeight={600}
                       />
                     </Bar>
@@ -468,18 +580,18 @@ export function PainelModulo({
 
             <DistribuicaoEstados estados={estadosDestinatarioVisiveis} />
 
-            <div className="panel order-4 min-w-0 p-4 lg:p-5 xl:col-span-6 2xl:col-span-6">
-              <h2 className="mb-3 text-xl font-semibold text-foreground">
+            <div className="panel order-4 min-w-0 p-3 lg:p-4 xl:order-3 xl:col-span-4">
+              <h2 className="mb-2 text-lg font-semibold text-foreground">
                 Valor do frete por status
               </h2>
               {fretesPorStatusVisiveis.length > 0 ? (
                 <ChartContainer
                   config={CONFIGURACAO_GRAFICO_VALORES}
-                  className="h-[270px] aspect-auto sm:h-[300px]"
+                  className="h-[180px] aspect-auto sm:h-[200px]"
                 >
                   <BarChart
                     data={fretesPorStatusVisiveis}
-                    margin={{ top: 24, right: 8, left: 4, bottom: 48 }}
+                    margin={{ top: 22, right: 4, left: 0, bottom: 44 }}
                   >
                     <CartesianGrid vertical={false} strokeDasharray="3 3" />
                     <XAxis
@@ -491,7 +603,7 @@ export function PainelModulo({
                       height={56}
                       tickLine={false}
                       axisLine={false}
-                      tick={{ fontSize: 15 }}
+                      tick={{ fontSize: 12 }}
                     />
                     <YAxis
                       tickFormatter={(valor: number) =>
@@ -499,7 +611,7 @@ export function PainelModulo({
                       }
                       tickLine={false}
                       axisLine={false}
-                      tick={{ fontSize: 14 }}
+                      tick={{ fontSize: 12 }}
                     />
                     <ChartTooltip
                       cursor={false}
@@ -513,7 +625,7 @@ export function PainelModulo({
                         position="top"
                         formatter={(valor: number) => formatarValorCompacto(valor)}
                         fill="var(--foreground)"
-                        fontSize={13}
+                        fontSize={11}
                         fontWeight={600}
                       />
                     </Bar>
@@ -526,7 +638,66 @@ export function PainelModulo({
               )}
             </div>
 
-            <div className="panel order-1 min-w-0 p-3 lg:p-4 xl:col-span-6 xl:mt-6 2xl:col-span-5">
+            <div className="panel order-5 min-w-0 p-3 lg:p-4 xl:order-1 xl:col-span-4">
+              <div className="mb-1">
+                <h2 className="text-lg font-semibold text-foreground">
+                  Ordens por tempo de criação
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Das mais recentes às mais antigas · baseado na dataHora da ordem
+                </p>
+              </div>
+              <ChartContainer
+                config={CONFIGURACAO_GRAFICO_IDADE}
+                className="h-[180px] aspect-auto sm:h-[200px]"
+              >
+                <BarChart data={ordensPorIdade} margin={{ top: 22, right: 4, left: 0, bottom: 8 }}>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="rotulo"
+                    interval={0}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tickFormatter={(valor: number) =>
+                      new Intl.NumberFormat("pt-BR", { notation: "compact" }).format(valor)
+                    }
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <ChartTooltip
+                    cursor={false}
+                    content={
+                      <ChartTooltipContent
+                        labelFormatter={(_, payload) => payload[0]?.payload.nome}
+                        formatter={(valor) => `${formatarInteiro(Number(valor))} ordens`}
+                      />
+                    }
+                  />
+                  <Bar
+                    dataKey="quantidade"
+                    name="Ordens"
+                    fill="var(--color-quantidade)"
+                    radius={[7, 7, 0, 0]}
+                  >
+                    <LabelList
+                      dataKey="quantidade"
+                      position="top"
+                      formatter={(quantidade: number) => formatarInteiro(quantidade)}
+                      fill="var(--foreground)"
+                      fontSize={12}
+                      fontWeight={600}
+                    />
+                  </Bar>
+                </BarChart>
+              </ChartContainer>
+            </div>
+
+            <div className="panel order-1 min-w-0 p-3 lg:p-4 xl:order-4 xl:col-span-5 2xl:col-span-5">
               <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="flex items-center gap-3">
