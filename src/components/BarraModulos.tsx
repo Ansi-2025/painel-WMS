@@ -1,6 +1,9 @@
 import { Link } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Settings2 } from "lucide-react";
+import { LayoutDashboard, LogOut, Settings2 } from "lucide-react";
+import { sairPainel } from "@/lib/auth.functions";
 import {
   assinarModulosPersonalizados,
   listarModulosPersonalizados,
@@ -14,6 +17,9 @@ export const MODULOS = [
 
 export function BarraModulos() {
   const [modulosPersonalizados, setModulosPersonalizados] = useState<ModuloPersonalizado[]>([]);
+  const [saindo, setSaindo] = useState(false);
+  const navigate = useNavigate();
+  const sair = useServerFn(sairPainel);
   const linkClassName =
     "mx-1 flex min-w-[72px] flex-1 flex-col items-center justify-center gap-0.5 border-t-2 border-t-transparent px-2 py-1 text-center text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground md:mx-2 md:flex-row md:justify-start md:gap-3 md:border-l-4 md:border-t-0 md:px-2.5 md:py-3 md:text-left";
   const activeLinkClassName =
@@ -72,6 +78,28 @@ export function BarraModulos() {
             </span>
           </Link>
         ))}
+        <button
+          className={`${linkClassName} md:mt-auto`}
+          disabled={saindo}
+          onClick={async () => {
+            setSaindo(true);
+            try {
+              await sair();
+              await navigate({ to: "/login", replace: true });
+            } finally {
+              setSaindo(false);
+            }
+          }}
+          title="Sair"
+          type="button"
+        >
+          <LogOut className="h-5 w-5 shrink-0" />
+          <span className="flex min-w-0 flex-col md:opacity-0 md:transition-opacity md:duration-200 md:group-hover:opacity-100">
+            <span className="whitespace-nowrap text-[10px] font-semibold leading-none tracking-wide md:text-sm md:leading-normal md:tracking-[0.08em]">
+              {saindo ? "Saindo..." : "Sair"}
+            </span>
+          </span>
+        </button>
       </nav>
       <div className="hidden border-t border-border px-4 py-3 md:block">
         <span className="whitespace-nowrap text-[10px] uppercase tracking-[0.2em] text-muted-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100">

@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { paraNumero, type OrdemWMS } from "./wms-api";
 import { STATUS_ORDEM, STATUS_ORDEM_OPERACIONAIS } from "./wms-parameters";
 import { ConsultaEshipSchema, type ConsultaEship } from "./wms-config";
+import { exigirSessao } from "@/lib/server/auth.server";
 
 const TIMEOUT_REQUISICAO_ESHIP_MS = 30_000;
 
@@ -328,12 +329,21 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
 
 export const consultarWms = createServerFn({ method: "POST" })
   .validator((data) => ConsultaEshipSchema.parse(data))
-  .handler(({ data }) => consultarEship(data));
+  .handler(async ({ data }) => {
+    await exigirSessao();
+    return consultarEship(data);
+  });
 
 export const consultarDashboardWms = createServerFn({ method: "POST" })
   .validator((data) => ConsultaEshipSchema.parse(data))
-  .handler(({ data }) => consultarDashboard(data));
+  .handler(async ({ data }) => {
+    await exigirSessao();
+    return consultarDashboard(data);
+  });
 
 export const consultarFuncao = createServerFn({ method: "POST" })
   .validator((data) => ConsultaEshipSchema.parse(data))
-  .handler(({ data }) => consultarEship(data));
+  .handler(async ({ data }) => {
+    await exigirSessao();
+    return consultarEship(data);
+  });

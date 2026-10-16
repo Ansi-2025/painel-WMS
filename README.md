@@ -27,13 +27,14 @@ Instale as dependências:
 npm install --no-package-lock
 ```
 
-Crie um arquivo `.env` na raiz do projeto e configure a chave da API:
+Crie um arquivo `.env` na raiz do projeto e configure a chave da API e a senha de acesso ao painel:
 
 ```env
 API_KEY=sua_chave_da_api
+USER_CONTROLER=sua_senha_de_acesso
 ```
 
-O arquivo `.env` é ignorado pelo Git. **Não inclua chaves ou outros segredos em commits.** A chave é lida no servidor e não é armazenada no navegador nem enviada pelo cliente.
+O arquivo `.env` é ignorado pelo Git. **Não inclua chaves ou outros segredos em commits.** A chave da API e a senha são lidas somente no servidor e não são armazenadas no navegador nem enviadas ao cliente.
 
 Inicie o servidor de desenvolvimento:
 
@@ -49,10 +50,14 @@ No dashboard, acesse **Configuração** para informar a função da API E-SHIP e
 
 A chave da API deve permanecer no servidor:
 
-- **Desenvolvimento local:** variável `API_KEY` no arquivo `.env`.
-- **Vercel:** variável `API_KEY` em **Project Settings → Environment Variables**. Depois de salvar a variável, faça uma nova implantação.
+- **Desenvolvimento local:** variáveis `API_KEY` e `USER_CONTROLER` no arquivo `.env`.
+- **Vercel:** variáveis `API_KEY` e `USER_CONTROLER` em **Project Settings → Environment Variables**. Depois de salvar ou alterar as variáveis, faça uma nova implantação.
 
-O servidor também aceita `ESHIP_API_KEY` para compatibilidade com configurações antigas.
+O servidor também aceita `ESHIP_API_KEY` para compatibilidade com configurações antigas. A variável `USER_CONTROLER` define a senha única do login do painel. Após entrar, a sessão permanece válida por até 12 horas; é possível encerrá-la pelo botão **Sair**.
+
+## Exibição automática por status
+
+No dashboard principal, a rotação automática dos cartões de status começa 20 segundos após a abertura da página. Em seguida, cada status fica selecionado por 15 segundos, em ciclo contínuo. Os dados são carregados uma vez e os filtros são aplicados localmente.
 
 ## Verificações
 

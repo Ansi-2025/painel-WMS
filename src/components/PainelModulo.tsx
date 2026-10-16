@@ -32,6 +32,8 @@ import {
 } from "@/lib/wms-config";
 
 const INTERVALO_SEGUNDOS = 120;
+const ATRASO_INICIO_CICLO_STATUS_MS = 20_000;
+const DURACAO_STATUS_MS = 15_000;
 const CONFIGURACAO_GRAFICO_VALORES: ChartConfig = {
   valor: { label: "Valor", color: "var(--chart-1)" },
 };
@@ -213,6 +215,25 @@ export function PainelModulo({
     }, 1000);
     return () => window.clearInterval(id);
   }, [apiAtiva, atualizarDashboard, preferenciaApiCarregada]);
+
+  useEffect(() => {
+    if (!exibirGraficos) return;
+
+    let indiceStatus = 0;
+    let intervalo: number | undefined;
+    const inicio = window.setTimeout(() => {
+      setStatusSelecionado(CARTOES_STATUS[indiceStatus]!.id);
+      intervalo = window.setInterval(() => {
+        indiceStatus = (indiceStatus + 1) % CARTOES_STATUS.length;
+        setStatusSelecionado(CARTOES_STATUS[indiceStatus]!.id);
+      }, DURACAO_STATUS_MS);
+    }, ATRASO_INICIO_CICLO_STATUS_MS);
+
+    return () => {
+      window.clearTimeout(inicio);
+      if (intervalo !== undefined) window.clearInterval(intervalo);
+    };
+  }, [exibirGraficos]);
 
   const ordensVisiveis = statusSelecionado
     ? ordens.filter((ordem) => ordem.statusId === statusSelecionado)
