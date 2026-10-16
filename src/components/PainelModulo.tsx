@@ -1,5 +1,5 @@
 import { useServerFn } from "@tanstack/react-start";
-import { CircleX, ClipboardList, Package, Search } from "lucide-react";
+import { CalendarDays, CircleX, ClipboardList, Package, Search } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Bar,
@@ -196,16 +196,104 @@ type ConsultaFn = (options: { data: ConsultaEship }) => Promise<{
   valorCanceladasHoje?: number;
 }>;
 
+type ConsultaIntegracaoFn = (options: { data: ConsultaEship }) => Promise<{
+  quantidadeIntegradasHoje: number;
+  valorIntegradasHoje: number;
+}>;
+
+function CartaoIntegracaoDia({
+  consulta,
+  consultar,
+  apiAtiva,
+  conectado,
+}: {
+  consulta: ConsultaEship;
+  consultar: ConsultaIntegracaoFn;
+  apiAtiva: boolean;
+  conectado: boolean;
+}) {
+  const consultarAPI = useServerFn(consultar);
+  const consultarAPIRef = useRef(consultarAPI);
+  consultarAPIRef.current = consultarAPI;
+  const [quantidade, setQuantidade] = useState(0);
+  const [valor, setValor] = useState(0);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState(false);
+
+  useEffect(() => {
+    if (!apiAtiva || !conectado) {
+      setCarregando(apiAtiva && !conectado);
+      return;
+    }
+
+    let ativo = true;
+    const buscarIntegracoes = () => {
+      setCarregando(true);
+      setErro(false);
+
+      void consultarAPIRef
+        .current({ data: consulta })
+        .then((resultado) => {
+          if (!ativo) return;
+          setQuantidade(resultado.quantidadeIntegradasHoje);
+          setValor(resultado.valorIntegradasHoje);
+        })
+        .catch((error: unknown) => {
+          console.error(
+            "Falha ao consultar integração do dia",
+            error instanceof Error ? error.name : "erro desconhecido",
+          );
+          if (ativo) setErro(true);
+        })
+        .finally(() => {
+          if (ativo) setCarregando(false);
+        });
+    };
+
+    buscarIntegracoes();
+    const intervalo = window.setInterval(buscarIntegracoes, 60 * 60 * 1000);
+    return () => {
+      ativo = false;
+      window.clearInterval(intervalo);
+    };
+  }, [apiAtiva, conectado, consulta]);
+
+  return (
+    <div className="panel flex min-w-0 items-center gap-3 p-3 lg:p-3.5">
+      <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/15 text-primary lg:size-11">
+        <CalendarDays aria-hidden="true" className="size-5 lg:size-6" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold tracking-[0.12em] text-muted-foreground">
+          INTEGRAÇÃO DO DIA
+        </p>
+        <p className="mt-0.5 break-words text-xl font-bold tabular-nums text-foreground lg:text-2xl">
+          {erro ? "Indisponível" : carregando ? "Consultando..." : formatarMoeda(valor)}
+        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {erro
+            ? "Falha ao consultar a API"
+            : carregando
+              ? "Calculando ordens integradas"
+              : `${formatarInteiro(quantidade)} ordens integradas hoje`}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function PainelModulo({
   titulo,
   subtitulo,
   consultar,
+  consultarIntegracao,
   consultaInicial,
   exibirGraficos = false,
 }: {
   titulo: string;
   subtitulo: string;
   consultar: ConsultaFn;
+  consultarIntegracao?: ConsultaIntegracaoFn;
   consultaInicial?: ConsultaEship;
   exibirGraficos?: boolean;
 }) {
@@ -451,7 +539,7 @@ export function PainelModulo({
 
         {exibirGraficos && (
           <section
-            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
             aria-label="Resumo do dashboard"
           >
             <div className="panel flex min-w-0 items-center gap-3 p-3 lg:p-3.5">
@@ -498,6 +586,14 @@ export function PainelModulo({
                 </p>
               </div>
             </div>
+            {consultarIntegracao && (
+              <CartaoIntegracaoDia
+                consulta={consulta}
+                consultar={consultarIntegracao}
+                apiAtiva={apiAtiva}
+                conectado={conectado}
+              />
+            )}
           </section>
         )}
 

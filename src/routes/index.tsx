@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PainelModulo } from "@/components/PainelModulo";
-import { consultarDashboardWms } from "@/lib/wms.functions";
+import { consultarDashboardWms, consultarIntegracaoDiaWms } from "@/lib/wms.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -28,6 +28,7 @@ function Painel() {
       titulo="DASHBOARD WMS"
       subtitulo="Acompanhamento em tempo real da operação"
       consultar={consultarDashboardWms}
+      consultarIntegracao={consultarIntegracaoDiaWms}
       exibirGraficos
     />
   );

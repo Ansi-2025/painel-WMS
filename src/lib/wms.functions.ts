@@ -234,7 +234,7 @@ function obterEstadoDestinatario(
   return { uf, nome };
 }
 
-function obterIntervaloHojeFortaleza(): { inicio: string; fim: string } {
+function obterDiaHojeFortaleza(): string {
   const partes = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Fortaleza",
     year: "numeric",
@@ -242,7 +242,11 @@ function obterIntervaloHojeFortaleza(): { inicio: string; fim: string } {
     day: "2-digit",
   }).formatToParts(new Date());
   const data = Object.fromEntries(partes.map(({ type, value }) => [type, value]));
-  const dia = `${data["year"]}-${data["month"]}-${data["day"]}`;
+  return `${data["year"]}-${data["month"]}-${data["day"]}`;
+}
+
+function obterIntervaloHojeFortaleza(): { inicio: string; fim: string } {
+  const dia = obterDiaHojeFortaleza();
   return { inicio: `${dia} 00:00:00`, fim: `${dia} 23:59:59` };
 }
 
@@ -407,6 +411,33 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
   };
 }
 
+async function consultarIntegracaoDoDia(
+  consulta: ConsultaEship,
+): Promise<{ quantidadeIntegradasHoje: number; valorIntegradasHoje: number }> {
+  const consultaIntegracoes: ConsultaEship = {
+    funcao: consulta.funcao,
+    parametros: {
+      incluirInfo: "true",
+      armazem: ARMAZEM_BRANCO01_ID,
+      statusOrdem: "[6,5,8,4,7,3,2,1,10]",
+      tipoOrdem: "[12,10,20,14,4,13,6,2]",
+      periodoLancamento: "10004",
+    },
+  };
+  const resultado = await consultarEship(consultaIntegracoes);
+  const ordensIntegradasHoje = [
+    ...new Map(resultado.ordens.map((ordem) => [String(ordem.ordem), ordem])).values(),
+  ];
+
+  return {
+    quantidadeIntegradasHoje: ordensIntegradasHoje.length,
+    valorIntegradasHoje: ordensIntegradasHoje.reduce(
+      (total, ordem) => total + paraNumero(ordem.infosAdicionais?.valordaordem),
+      0,
+    ),
+  };
+}
+
 export const consultarWms = createServerFn({ method: "POST" })
   .validator((data) => ConsultaEshipSchema.parse(data))
   .handler(async ({ data }) => {
@@ -419,6 +450,13 @@ export const consultarDashboardWms = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await exigirSessao();
     return consultarDashboard(data);
+  });
+
+export const consultarIntegracaoDiaWms = createServerFn({ method: "POST" })
+  .validator((data) => ConsultaEshipSchema.parse(data))
+  .handler(async ({ data }) => {
+    await exigirSessao();
+    return consultarIntegracaoDoDia(data);
   });
 
 export const consultarFuncao = createServerFn({ method: "POST" })
