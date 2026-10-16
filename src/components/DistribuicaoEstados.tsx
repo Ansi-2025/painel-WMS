@@ -76,8 +76,8 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
         </p>
       </div>
 
-      <div className="grid min-h-0 flex-1 items-center gap-4 md:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="flex h-[420px] min-w-0 items-center justify-center lg:h-[500px]">
+      <div className="grid min-h-0 flex-1 items-center gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="flex h-[280px] min-w-0 items-center justify-center sm:h-[360px] lg:h-[500px]">
           <svg
             ref={mapaRef}
             viewBox={brazilMap.viewBox}
@@ -132,12 +132,12 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
         </div>
 
         <div className="flex min-w-0 flex-col gap-3">
-          <div className="rounded-xl border border-border/70 bg-background/30 p-4">
+          <div className="rounded-xl border border-border/70 bg-background/30 p-3 sm:p-4">
             <h3 className="mb-3 text-base font-semibold uppercase tracking-wide text-muted-foreground">
               Top 5 estados
             </h3>
             {maioresEstados.length > 0 ? (
-              <ol className="space-y-4">
+              <ol className="space-y-3 sm:space-y-4">
                 {maioresEstados.map((estado) => (
                   <li key={estado.uf} className="grid grid-cols-[2rem_minmax(0,1fr)_5rem] gap-3">
                     <span className="text-base font-semibold text-foreground">{estado.uf}</span>

@@ -22,7 +22,7 @@ function ModuloDinamico() {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <BarraModulos />
-        <main className="mx-auto max-w-[1800px] p-6 pl-20 lg:pl-22">
+        <main className="mx-auto max-w-[1800px] p-3 pb-20 sm:p-6 sm:pb-20 md:pl-20 lg:pb-6 lg:pl-22">
           <div className="panel px-5 py-4">
             <h1 className="text-xl font-semibold">Módulo não encontrado</h1>
             <p className="mt-2 text-sm text-muted-foreground">

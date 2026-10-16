@@ -251,7 +251,7 @@ export function PainelModulo({
   return (
     <div className="min-h-screen bg-background text-foreground">
       <BarraModulos />
-      <div className="mx-auto flex min-h-screen w-full max-w-none flex-col gap-4 p-4 pl-20 lg:gap-6 lg:p-6 lg:pl-22">
+      <div className="mx-auto flex min-h-screen w-full max-w-none flex-col gap-3 p-3 pb-20 sm:gap-4 sm:p-4 sm:pb-20 md:pl-20 lg:gap-6 lg:p-6 lg:pb-6 lg:pl-22">
         <header className="panel flex flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-xl font-bold tracking-[0.12em] text-foreground lg:text-3xl">
@@ -333,7 +333,7 @@ export function PainelModulo({
 
         {exibirGraficos && (
           <section
-            className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7"
+            className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2 xl:grid-cols-7"
             role="group"
             aria-label={
               statusSelecionado
@@ -354,16 +354,16 @@ export function PainelModulo({
                   onClick={() =>
                     setStatusSelecionado((atual) => (atual === cartao.id ? null : cartao.id))
                   }
-                  className={`flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-center shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                  className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1.5 py-1.5 text-center shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:min-h-16 sm:px-2 sm:py-2 ${
                     statusSelecionado && !selecionado
                       ? "border-border bg-muted/50 text-muted-foreground opacity-55 hover:opacity-90"
                       : `${cartao.estilo} ${selecionado ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`
                   }`}
                 >
-                  <span className="text-base font-semibold leading-tight lg:text-lg">
+                  <span className="text-xs font-semibold leading-tight sm:text-base lg:text-lg">
                     {cartao.nome}
                   </span>
-                  <span className="text-xl font-bold tabular-nums leading-none sm:text-2xl">
+                  <span className="text-lg font-bold tabular-nums leading-none sm:text-2xl">
                     {formatarInteiro(quantidade)}
                   </span>
                 </button>
@@ -379,7 +379,7 @@ export function PainelModulo({
               {statusPedidosVisiveis.length > 0 ? (
                 <ChartContainer
                   config={CONFIGURACAO_GRAFICO_PEDIDOS}
-                  className="h-[300px] aspect-auto"
+                  className="h-[270px] aspect-auto sm:h-[300px]"
                 >
                   <BarChart
                     data={statusPedidosVisiveis}
@@ -454,7 +454,7 @@ export function PainelModulo({
               {fretesPorStatusVisiveis.length > 0 ? (
                 <ChartContainer
                   config={CONFIGURACAO_GRAFICO_VALORES}
-                  className="h-[300px] aspect-auto"
+                  className="h-[270px] aspect-auto sm:h-[300px]"
                 >
                   <BarChart
                     data={fretesPorStatusVisiveis}
@@ -534,7 +534,49 @@ export function PainelModulo({
                   />
                 </label>
               </div>
-              <div className="rounded-xl border border-border/70">
+              <div className="space-y-2 sm:hidden">
+                {filasFiltradas.map((fila) => (
+                  <article
+                    key={fila.nome}
+                    className="rounded-lg border border-border/70 bg-background/30 p-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="flex min-w-0 items-center gap-2 font-semibold text-foreground">
+                        <span
+                          aria-hidden="true"
+                          className={`size-2.5 shrink-0 rounded-full ${corIndicadorFila(fila.nome)}`}
+                        />
+                        <span className="break-words">{fila.nome}</span>
+                      </h3>
+                      <span className="shrink-0 text-right text-sm font-semibold tabular-nums text-foreground">
+                        {formatarMoeda(fila.valorTotal)}
+                      </span>
+                    </div>
+                    <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-border/60 pt-2 text-xs">
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-muted-foreground">Pedidos</dt>
+                        <dd className="font-medium tabular-nums">
+                          {formatarInteiro(fila.quantidade)}
+                        </dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-muted-foreground">% do total</dt>
+                        <dd className="font-medium tabular-nums">
+                          {totalOrdens(ordensVisiveis) > 0
+                            ? `${formatarInteiro((fila.quantidade / totalOrdens(ordensVisiveis)) * 100)}%`
+                            : "0%"}
+                        </dd>
+                      </div>
+                    </dl>
+                  </article>
+                ))}
+                {filasFiltradas.length === 0 && (
+                  <p className="rounded-lg border border-border/70 px-3 py-6 text-center text-sm text-muted-foreground">
+                    Nenhuma fila encontrada.
+                  </p>
+                )}
+              </div>
+              <div className="hidden rounded-xl border border-border/70 sm:block">
                 <table className="w-full min-w-[500px] text-left text-sm">
                   <thead className="bg-card text-xs font-semibold text-muted-foreground lg:text-sm">
                     <tr>

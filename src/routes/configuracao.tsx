@@ -141,7 +141,7 @@ function Configuracao() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <BarraModulos />
-      <main className="mx-auto flex min-h-screen max-w-[1800px] flex-col gap-4 p-4 pl-20 lg:gap-6 lg:p-6 lg:pl-22">
+      <main className="mx-auto flex min-h-screen max-w-[1800px] flex-col gap-4 p-3 pb-20 sm:p-4 sm:pb-20 md:pl-20 lg:gap-6 lg:p-6 lg:pb-6 lg:pl-22">
         <header className="panel px-5 py-4">
           <h1 className="text-2xl font-bold tracking-[0.12em] text-foreground lg:text-4xl">
             CONFIGURAÇÃO
