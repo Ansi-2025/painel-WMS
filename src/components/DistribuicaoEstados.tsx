@@ -1,4 +1,5 @@
 import brazilMap from "@svg-maps/brazil";
+import { useEffect, useRef, useState } from "react";
 
 export type EstadoDestinatario = {
   uf: string;
@@ -25,6 +26,10 @@ function corDoEstado(quantidade: number): string {
 }
 
 export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[] }) {
+  const mapaRef = useRef<SVGSVGElement>(null);
+  const [centrosEstados, setCentrosEstados] = useState<Record<string, { x: number; y: number }>>(
+    {},
+  );
   const quantidadesPorUf = new Map(estados.map((estado) => [estado.uf.toUpperCase(), estado]));
   const totalPedidos = estados.reduce((total, estado) => total + estado.quantidade, 0);
   const maximo = Math.max(0, ...estados.map((estado) => estado.quantidade));
@@ -32,9 +37,26 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
     .sort((a, b) => b.quantidade - a.quantidade || a.nome.localeCompare(b.nome, "pt-BR"))
     .slice(0, 5);
 
+  useEffect(() => {
+    const svg = mapaRef.current;
+    if (!svg) return;
+
+    const centros: Record<string, { x: number; y: number }> = {};
+    for (const path of svg.querySelectorAll<SVGPathElement>("path[data-uf]")) {
+      const uf = path.getAttribute("data-uf");
+      if (!uf) continue;
+      const bounds = path.getBBox();
+      centros[uf] = {
+        x: bounds.x + bounds.width / 2,
+        y: bounds.y + bounds.height / 2,
+      };
+    }
+    setCentrosEstados(centros);
+  }, []);
+
   return (
     <section
-      className="panel order-2 flex min-w-0 flex-col p-4 lg:p-5 xl:col-span-4 2xl:col-span-8"
+      className="panel order-2 flex min-w-0 flex-col p-4 lg:p-5 xl:col-span-6 2xl:col-span-7"
       aria-label="Distribuição das ordens pelo estado do destinatário"
     >
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
@@ -54,9 +76,10 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
         </p>
       </div>
 
-      <div className="grid min-h-0 flex-1 items-center gap-4 md:grid-cols-[minmax(0,1fr)_260px]">
+      <div className="grid min-h-0 flex-1 items-center gap-4 md:grid-cols-[minmax(0,1fr)_300px]">
         <div className="flex h-[420px] min-w-0 items-center justify-center lg:h-[500px]">
           <svg
+            ref={mapaRef}
             viewBox={brazilMap.viewBox}
             role="img"
             aria-label="Mapa do Brasil com a quantidade de ordens por estado do destinatário"
@@ -68,6 +91,7 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
               return (
                 <path
                   key={local.id}
+                  data-uf={local.id.toUpperCase()}
                   d={local.path}
                   fill={corDoEstado(quantidade)}
                   stroke="#8bbcff"
@@ -81,18 +105,41 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
                 </path>
               );
             })}
+            {brazilMap.locations.map((local) => {
+              const centro = centrosEstados[local.id.toUpperCase()];
+              if (!centro) return null;
+              return (
+                <text
+                  key={`label-${local.id}`}
+                  x={centro.x}
+                  y={centro.y}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fill="white"
+                  stroke="#10213b"
+                  strokeWidth="2.5"
+                  paintOrder="stroke"
+                  fontSize="12"
+                  fontWeight="700"
+                  pointerEvents="none"
+                  aria-hidden="true"
+                >
+                  {local.id.toUpperCase()}
+                </text>
+              );
+            })}
           </svg>
         </div>
 
         <div className="flex min-w-0 flex-col gap-3">
-          <div className="rounded-xl border border-border/70 bg-background/30 p-3">
+          <div className="rounded-xl border border-border/70 bg-background/30 p-4">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Top 5 estados
             </h3>
             {maioresEstados.length > 0 ? (
-              <ol className="space-y-3">
+              <ol className="space-y-4">
                 {maioresEstados.map((estado) => (
-                  <li key={estado.uf} className="grid grid-cols-[2rem_minmax(0,1fr)_2.5rem] gap-2">
+                  <li key={estado.uf} className="grid grid-cols-[2rem_minmax(0,1fr)_5rem] gap-3">
                     <span className="text-xs font-semibold text-foreground">{estado.uf}</span>
                     <span className="h-4 overflow-hidden rounded bg-muted/60">
                       <span

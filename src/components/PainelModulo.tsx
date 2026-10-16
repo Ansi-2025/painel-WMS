@@ -39,6 +39,23 @@ const CONFIGURACAO_GRAFICO_PEDIDOS: ChartConfig = {
   quantidade: { label: "Pedidos", color: "var(--chart-1)" },
   valor: { label: "Valor total", color: "var(--chart-2)" },
 };
+const CARTOES_STATUS = [
+  { id: "1", nome: "Lançados", estilo: "border-slate-300 bg-white text-slate-950" },
+  { id: "2", nome: "Emitido", estilo: "border-blue-500 bg-blue-600 text-white" },
+  { id: "3", nome: "Em operação", estilo: "border-orange-500 bg-orange-500 text-white" },
+  { id: "4", nome: "Conferida", estilo: "border-green-600 bg-green-600 text-white" },
+  {
+    id: "5",
+    nome: "Ag. Documentação",
+    estilo: "border-gray-500 bg-gray-500 text-white",
+  },
+  {
+    id: "6",
+    nome: "Ag. Expedição",
+    estilo: "border-sky-400 bg-sky-400 text-slate-950",
+  },
+  { id: "7", nome: "Em Expedição", estilo: "border-white bg-white text-slate-950" },
+] as const;
 const formatadorValorCompacto = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
@@ -105,6 +122,7 @@ export function PainelModulo({
 }) {
   const [ordens, setOrdens] = useState<OrdemWMS[]>([]);
   const [statusPedidos, setStatusPedidos] = useState<StatusPedido[]>([]);
+  const [statusSelecionado, setStatusSelecionado] = useState<string | null>(null);
   const [fretesPorStatus, setFretesPorStatus] = useState<FretePorStatus[]>([]);
   const [estadosDestinatario, setEstadosDestinatario] = useState<EstadoDestinatario[]>([]);
   const [buscaFila, setBuscaFila] = useState("");
@@ -115,7 +133,7 @@ export function PainelModulo({
   const [atualizadoEm, setAtualizadoEm] = useState<string>("--:--:--");
   const [contador, setContador] = useState(INTERVALO_SEGUNDOS);
   const [consulta, setConsulta] = useState(() => obterConsultaAtiva(consultaInicial));
-  const carregando = useRef(false);
+  const numeroConsultaAtual = useRef(0);
   const consultarAPI = useServerFn(consultar);
 
   useEffect(() => {
@@ -149,11 +167,19 @@ export function PainelModulo({
   }, [consultaInicial]);
 
   const atualizarDashboard = useCallback(async () => {
-    if (!preferenciaApiCarregada || !apiAtiva || carregando.current) return;
-    carregando.current = true;
+    if (!preferenciaApiCarregada || !apiAtiva) return;
+    const numeroConsulta = ++numeroConsultaAtual.current;
     setConsultando(true);
     try {
-      const dados = await consultarAPI({ data: consulta });
+      const consultaComStatus: ConsultaEship = {
+        ...consulta,
+        parametros: {
+          ...consulta.parametros,
+          ["statusOrdem"]: `[${statusSelecionado ?? CARTOES_STATUS.map(({ id }) => id).join(",")}]`,
+        },
+      };
+      const dados = await consultarAPI({ data: consultaComStatus });
+      if (numeroConsulta !== numeroConsultaAtual.current) return;
       setOrdens(dados.ordens);
       setStatusPedidos(dados.statusPedidos ?? []);
       setFretesPorStatus(dados.fretesPorStatus ?? []);
@@ -161,17 +187,19 @@ export function PainelModulo({
       setConectado(true);
       setAtualizadoEm(formatarHora(new Date()));
     } catch {
-      setConectado(false);
+      if (numeroConsulta === numeroConsultaAtual.current) setConectado(false);
     } finally {
-      carregando.current = false;
-      setContador(INTERVALO_SEGUNDOS);
-      setConsultando(false);
+      if (numeroConsulta === numeroConsultaAtual.current) {
+        setContador(INTERVALO_SEGUNDOS);
+        setConsultando(false);
+      }
     }
-  }, [apiAtiva, consulta, consultarAPI, preferenciaApiCarregada]);
+  }, [apiAtiva, consulta, consultarAPI, preferenciaApiCarregada, statusSelecionado]);
 
   useEffect(() => {
     if (!preferenciaApiCarregada) return;
     if (!apiAtiva) {
+      numeroConsultaAtual.current += 1;
       setContador(INTERVALO_SEGUNDOS);
       setConsultando(false);
       return;
@@ -278,10 +306,48 @@ export function PainelModulo({
 
         {exibirGraficos && (
           <section
-            className="grid gap-3 xl:grid-cols-6 2xl:grid-cols-12"
-            aria-label="Indicadores do dashboard"
+            className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7"
+            role="group"
+            aria-label={
+              statusSelecionado
+                ? `Filtrando por ${CARTOES_STATUS.find(({ id }) => id === statusSelecionado)?.nome}`
+                : "Todos os status ativos"
+            }
           >
-            <div className="panel order-1 min-w-0 p-4 lg:p-5 xl:col-span-2 2xl:col-span-4">
+            {CARTOES_STATUS.map((cartao) => {
+              const quantidade =
+                statusPedidos.find((status) => status.id === cartao.id)?.quantidade ?? 0;
+              const selecionado = statusSelecionado === cartao.id;
+              return (
+                <button
+                  key={cartao.id}
+                  type="button"
+                  aria-pressed={selecionado}
+                  aria-label={`${selecionado ? "Remover filtro de" : "Filtrar por"} ${cartao.nome}`}
+                  onClick={() =>
+                    setStatusSelecionado((atual) => (atual === cartao.id ? null : cartao.id))
+                  }
+                  className={`flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-center shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                    statusSelecionado && !selecionado
+                      ? "border-border bg-muted/50 text-muted-foreground opacity-55 hover:opacity-90"
+                      : `${cartao.estilo} ${selecionado ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`
+                  }`}
+                >
+                  <span className="text-xs font-semibold leading-tight sm:text-sm">
+                    {cartao.nome}
+                  </span>
+                  <span className="text-xl font-bold tabular-nums leading-none sm:text-2xl">
+                    {formatarInteiro(quantidade)}
+                  </span>
+                </button>
+              );
+            })}
+          </section>
+        )}
+
+        {exibirGraficos && (
+          <section className="grid gap-3 xl:grid-cols-12" aria-label="Indicadores do dashboard">
+            <div className="panel order-3 min-w-0 p-4 lg:p-5 xl:col-span-6 2xl:col-span-6">
               <h2 className="mb-3 text-base font-semibold text-foreground">Pedidos por status</h2>
               {statusPedidos.length > 0 ? (
                 <ChartContainer
@@ -345,7 +411,7 @@ export function PainelModulo({
                   </BarChart>
                 </ChartContainer>
               ) : (
-                <p className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">
+                <p className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
                   Nenhum status de pedido encontrado na API.
                 </p>
               )}
@@ -353,7 +419,7 @@ export function PainelModulo({
 
             <DistribuicaoEstados estados={estadosDestinatario} />
 
-            <div className="panel order-4 min-w-0 p-4 lg:p-5 xl:col-span-2 2xl:col-span-5">
+            <div className="panel order-4 min-w-0 p-4 lg:p-5 xl:col-span-6 2xl:col-span-6">
               <h2 className="mb-3 text-base font-semibold text-foreground">
                 Valor do frete por status
               </h2>
@@ -410,7 +476,7 @@ export function PainelModulo({
               )}
             </div>
 
-            <div className="panel order-3 min-w-0 p-4 lg:p-5 xl:col-span-4 2xl:col-span-7">
+            <div className="panel order-1 min-w-0 p-4 lg:p-5 xl:col-span-6 2xl:col-span-5">
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="flex items-center gap-3">
@@ -439,7 +505,7 @@ export function PainelModulo({
                   />
                 </label>
               </div>
-              <div className="max-h-[320px] overflow-auto rounded-xl border border-border/70">
+              <div className="max-h-[420px] overflow-auto rounded-xl border border-border/70">
                 <table className="w-full min-w-[600px] text-left text-sm">
                   <thead className="sticky top-0 bg-card text-xs font-semibold text-muted-foreground">
                     <tr>
