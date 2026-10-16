@@ -12,6 +12,8 @@ export interface InfosAdicionais {
   alterartransporte?: string;
   valorfrete?: string | undefined;
   transportealterado?: string;
+  transporte?: string | undefined;
+  nomeTransporte?: string | undefined;
   fila?: string | undefined;
   peso?: string;
 }
@@ -19,6 +21,8 @@ export interface InfosAdicionais {
 export interface OrdemWMS {
   ordem: number;
   codigo: string;
+  transporte?: string | undefined;
+  nomeTransporte?: string | undefined;
   infosAdicionais?: InfosAdicionais | undefined;
 }
 

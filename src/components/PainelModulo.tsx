@@ -1,7 +1,17 @@
 import { useServerFn } from "@tanstack/react-start";
-import { Boxes, ClipboardList, ListOrdered, Package, Search } from "lucide-react";
+import { ClipboardList, Package, Search } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ComposedChart,
+  LabelList,
+  Line,
+  ReferenceLine,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { BarraModulos } from "@/components/BarraModulos";
 import { Input } from "@/components/ui/input";
 import {
@@ -36,6 +46,11 @@ const CONFIGURACAO_GRAFICO_VALORES: ChartConfig = {
 };
 const CONFIGURACAO_GRAFICO_PEDIDOS: ChartConfig = {
   quantidade: { label: "Pedidos", color: "var(--chart-1)" },
+  valor: { label: "Valor total", color: "var(--chart-2)" },
+};
+const CONFIGURACAO_GRAFICO_PARETO: ChartConfig = {
+  quantidade: { label: "Ordens", color: "var(--chart-1)" },
+  percentualAcumulado: { label: "Acumulado", color: "var(--chart-2)" },
 };
 const formatadorValorCompacto = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -68,12 +83,19 @@ type StatusPedido = {
   id: string;
   nome: string;
   quantidade: number;
+  valor: number;
+};
+
+type TransportePedido = {
+  nome: string;
+  quantidade: number;
 };
 
 type ConsultaFn = (options: { data: ConsultaEship }) => Promise<{
   ordens: OrdemWMS[];
   statusPedidos?: StatusPedido[];
   fretesPorStatus?: FretePorStatus[];
+  transportePedidos?: TransportePedido[];
 }>;
 
 export function PainelModulo({
@@ -92,6 +114,7 @@ export function PainelModulo({
   const [ordens, setOrdens] = useState<OrdemWMS[]>([]);
   const [statusPedidos, setStatusPedidos] = useState<StatusPedido[]>([]);
   const [fretesPorStatus, setFretesPorStatus] = useState<FretePorStatus[]>([]);
+  const [transportePedidos, setTransportePedidos] = useState<TransportePedido[]>([]);
   const [buscaFila, setBuscaFila] = useState("");
   const [apiAtiva, setApiAtiva] = useState(true);
   const [preferenciaApiCarregada, setPreferenciaApiCarregada] = useState(false);
@@ -142,6 +165,7 @@ export function PainelModulo({
       setOrdens(dados.ordens);
       setStatusPedidos(dados.statusPedidos ?? []);
       setFretesPorStatus(dados.fretesPorStatus ?? []);
+      setTransportePedidos(dados.transportePedidos ?? []);
       setConectado(true);
       setAtualizadoEm(formatarHora(new Date()));
     } catch {
@@ -177,15 +201,34 @@ export function PainelModulo({
   const filasFiltradas = filas.filter((fila) =>
     fila.nome.toLocaleLowerCase("pt-BR").includes(buscaFila.trim().toLocaleLowerCase("pt-BR")),
   );
-  const valoresPorFila = [...filas]
-    .sort((a, b) => b.valorTotal - a.valorTotal || a.nome.localeCompare(b.nome, "pt-BR"))
-    .map(({ nome, valorTotal: total, quantidade }) => ({
-      nome,
-      valor: total,
-      quantidade,
-    }));
-  const ordensComFila = filas.reduce((totalFilas, fila) => totalFilas + fila.quantidade, 0);
-  const filaMaisComum = filas[0];
+  const totalPedidosPorTransporte = transportePedidos.reduce(
+    (total, transporte) => total + transporte.quantidade,
+    0,
+  );
+  const paretoTransporte = (() => {
+    const limiteTransportes = 12;
+    const itens =
+      transportePedidos.length > limiteTransportes
+        ? [
+            ...transportePedidos.slice(0, limiteTransportes),
+            {
+              nome: "Demais transportes",
+              quantidade: transportePedidos
+                .slice(limiteTransportes)
+                .reduce((total, transporte) => total + transporte.quantidade, 0),
+            },
+          ]
+        : transportePedidos;
+    let acumulado = 0;
+    return itens.map((transporte) => {
+      acumulado += transporte.quantidade;
+      return {
+        ...transporte,
+        percentualAcumulado:
+          totalPedidosPorTransporte > 0 ? (acumulado / totalPedidosPorTransporte) * 100 : 0,
+      };
+    });
+  })();
   return (
     <div className="min-h-screen bg-background text-foreground">
       <BarraModulos />
@@ -235,7 +278,7 @@ export function PainelModulo({
 
         {exibirGraficos && (
           <section
-            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2"
             aria-label="Resumo do dashboard"
           >
             <div className="panel flex min-w-0 items-center gap-4 p-4 lg:p-5">
@@ -253,22 +296,6 @@ export function PainelModulo({
               </div>
             </div>
             <div className="panel flex min-w-0 items-center gap-4 p-4 lg:p-5">
-              <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-violet-500/15 text-violet-300 lg:size-14">
-                <ListOrdered aria-hidden="true" className="size-6 lg:size-7" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-xs font-semibold tracking-[0.12em] text-muted-foreground">
-                  FILA COM MAIS PEDIDOS
-                </p>
-                <p className="mt-1 break-words text-2xl font-bold text-foreground lg:text-3xl">
-                  {filaMaisComum?.nome ?? "—"}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {formatarInteiro(filaMaisComum?.quantidade ?? 0)} pedidos
-                </p>
-              </div>
-            </div>
-            <div className="panel flex min-w-0 items-center gap-4 p-4 lg:p-5">
               <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-primary/15 text-primary lg:size-14">
                 <ClipboardList aria-hidden="true" className="size-6 lg:size-7" />
               </span>
@@ -282,100 +309,21 @@ export function PainelModulo({
                 <p className="mt-1 text-xs text-muted-foreground">Pedidos retornados pela API</p>
               </div>
             </div>
-            <div className="panel flex min-w-0 items-center gap-4 p-4 lg:p-5">
-              <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-violet-500/15 text-violet-300 lg:size-14">
-                <Boxes aria-hidden="true" className="size-6 lg:size-7" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-xs font-semibold tracking-[0.12em] text-muted-foreground">
-                  PEDIDOS COM FILA
-                </p>
-                <p className="mt-1 text-3xl font-bold tabular-nums text-foreground lg:text-4xl">
-                  {formatarInteiro(ordensComFila)}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">Ordens com fila identificada</p>
-              </div>
-            </div>
           </section>
         )}
 
         {exibirGraficos && (
-          <section className="grid gap-3 xl:grid-cols-3" aria-label="Indicadores do dashboard">
-            <div className="panel min-w-0 p-4 lg:p-5">
-              <h2 className="mb-3 text-base font-semibold text-foreground">
-                Valor das ordens por fila
-              </h2>
-              {valoresPorFila.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <ChartContainer
-                    config={CONFIGURACAO_GRAFICO_VALORES}
-                    className="h-[260px] aspect-auto"
-                    style={{ minWidth: `${Math.max(640, valoresPorFila.length * 76)}px` }}
-                  >
-                    <BarChart
-                      data={valoresPorFila}
-                      margin={{ top: 28, right: 16, left: 8, bottom: 70 }}
-                    >
-                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="nome"
-                        angle={-30}
-                        textAnchor="end"
-                        interval={0}
-                        height={84}
-                        tickLine={false}
-                        axisLine={false}
-                        tick={{ fontSize: 12 }}
-                      />
-                      <YAxis
-                        tickFormatter={(valor: number) =>
-                          new Intl.NumberFormat("pt-BR", { notation: "compact" }).format(valor)
-                        }
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <ChartTooltip
-                        cursor={false}
-                        content={
-                          <ChartTooltipContent
-                            formatter={(valor) => formatarMoeda(Number(valor))}
-                            labelFormatter={(nome, payload) => {
-                              const quantidade = payload[0]?.payload.quantidade;
-                              return `${nome} · ${formatarInteiro(Number(quantidade ?? 0))} ordens`;
-                            }}
-                          />
-                        }
-                      />
-                      <Bar dataKey="valor" fill="var(--color-valor)" radius={4}>
-                        <LabelList
-                          dataKey="valor"
-                          position="top"
-                          formatter={(valor: number) => formatarValorCompacto(valor)}
-                          fill="var(--foreground)"
-                          fontSize={12}
-                          fontWeight={600}
-                        />
-                      </Bar>
-                    </BarChart>
-                  </ChartContainer>
-                </div>
-              ) : (
-                <p className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">
-                  Nenhuma fila encontrada no retorno da API.
-                </p>
-              )}
-            </div>
-
-            <div className="panel min-w-0 p-5">
+          <section className="grid gap-3 xl:grid-cols-4" aria-label="Indicadores do dashboard">
+            <div className="panel order-1 min-w-0 p-4 lg:p-5 xl:col-span-2">
               <h2 className="mb-3 text-base font-semibold text-foreground">Pedidos por status</h2>
               {statusPedidos.length > 0 ? (
                 <ChartContainer
                   config={CONFIGURACAO_GRAFICO_PEDIDOS}
-                  className="h-[260px] aspect-auto"
+                  className="h-[300px] aspect-auto"
                 >
                   <BarChart
                     data={statusPedidos}
-                    margin={{ top: 24, right: 8, left: 0, bottom: 74 }}
+                    margin={{ top: 38, right: 8, left: 0, bottom: 74 }}
                   >
                     <CartesianGrid vertical={false} strokeDasharray="3 3" />
                     <XAxis
@@ -401,15 +349,27 @@ export function PainelModulo({
                       cursor={false}
                       content={
                         <ChartTooltipContent
-                          formatter={(valor) => formatarInteiro(Number(valor))}
+                          formatter={(valor, nome) =>
+                            nome === "valor"
+                              ? formatarMoeda(Number(valor))
+                              : formatarInteiro(Number(valor))
+                          }
                         />
                       }
                     />
                     <Bar dataKey="quantidade" fill="var(--color-quantidade)" radius={[7, 7, 0, 0]}>
                       <LabelList
                         dataKey="quantidade"
-                        position="top"
+                        position="insideTop"
                         formatter={(quantidade: number) => formatarInteiro(quantidade)}
+                        fill="white"
+                        fontSize={12}
+                        fontWeight={600}
+                      />
+                      <LabelList
+                        dataKey="valor"
+                        position="top"
+                        formatter={(valor: number) => formatarValorCompacto(valor)}
                         fill="var(--foreground)"
                         fontSize={11}
                         fontWeight={600}
@@ -424,14 +384,14 @@ export function PainelModulo({
               )}
             </div>
 
-            <div className="panel min-w-0 p-4 lg:p-5">
+            <div className="panel order-2 min-w-0 p-4 lg:p-5 xl:col-span-2">
               <h2 className="mb-3 text-base font-semibold text-foreground">
                 Valor do frete por status
               </h2>
               {fretesPorStatus.length > 0 ? (
                 <ChartContainer
                   config={CONFIGURACAO_GRAFICO_VALORES}
-                  className="h-[260px] aspect-auto"
+                  className="h-[300px] aspect-auto"
                 >
                   <BarChart
                     data={fretesPorStatus}
@@ -475,13 +435,13 @@ export function PainelModulo({
                   </BarChart>
                 </ChartContainer>
               ) : (
-                <p className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">
+                <p className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
                   Nenhum frete encontrado para os status selecionados.
                 </p>
               )}
             </div>
 
-            <div className="panel min-w-0 p-4 xl:col-span-3 lg:p-5">
+            <div className="panel order-3 min-w-0 p-4 lg:p-5 xl:col-span-2">
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-base font-semibold text-foreground">Fila por família</h2>
@@ -543,6 +503,100 @@ export function PainelModulo({
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            <div className="panel order-4 min-w-0 p-4 lg:p-5 xl:col-span-2">
+              <div className="mb-3">
+                <h2 className="text-base font-semibold text-foreground">
+                  Pareto de pedidos por transporte
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Top 12 + demais · barras: ordens · linha: percentual acumulado
+                </p>
+              </div>
+              {paretoTransporte.length > 0 ? (
+                <ChartContainer
+                  config={CONFIGURACAO_GRAFICO_PARETO}
+                  className="h-[320px] aspect-auto"
+                >
+                  <ComposedChart
+                    data={paretoTransporte}
+                    margin={{ top: 30, right: 8, left: 0, bottom: 82 }}
+                  >
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="nome"
+                      angle={-32}
+                      textAnchor="end"
+                      interval={0}
+                      height={96}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis
+                      yAxisId="ordens"
+                      allowDecimals={false}
+                      tickFormatter={(valor: number) => formatarInteiro(valor)}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      yAxisId="percentual"
+                      orientation="right"
+                      domain={[0, 100]}
+                      tickFormatter={(valor: number) => `${Math.round(valor)}%`}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <ChartTooltip
+                      cursor={false}
+                      content={
+                        <ChartTooltipContent
+                          formatter={(valor, nome) =>
+                            nome === "percentualAcumulado"
+                              ? `${Number(valor).toFixed(1)}%`
+                              : formatarInteiro(Number(valor))
+                          }
+                        />
+                      }
+                    />
+                    <ReferenceLine
+                      yAxisId="percentual"
+                      y={80}
+                      stroke="var(--muted-foreground)"
+                      strokeDasharray="5 5"
+                    />
+                    <Bar
+                      yAxisId="ordens"
+                      dataKey="quantidade"
+                      fill="var(--color-quantidade)"
+                      radius={[6, 6, 0, 0]}
+                    >
+                      <LabelList
+                        dataKey="quantidade"
+                        position="top"
+                        formatter={(quantidade: number) => formatarInteiro(quantidade)}
+                        fill="var(--foreground)"
+                        fontSize={11}
+                        fontWeight={600}
+                      />
+                    </Bar>
+                    <Line
+                      yAxisId="percentual"
+                      dataKey="percentualAcumulado"
+                      type="monotone"
+                      stroke="var(--color-percentualAcumulado)"
+                      strokeWidth={3}
+                      dot={{ r: 3 }}
+                    />
+                  </ComposedChart>
+                </ChartContainer>
+              ) : (
+                <p className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">
+                  Nenhum dado de transporte encontrado na API.
+                </p>
+              )}
             </div>
           </section>
         )}
