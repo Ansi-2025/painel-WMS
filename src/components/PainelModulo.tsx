@@ -44,6 +44,7 @@ import {
 const INTERVALO_SEGUNDOS = 120;
 const ATRASO_INICIO_CICLO_STATUS_MS = 20_000;
 const DURACAO_STATUS_MS = 15_000;
+const DURACAO_VISAO_GERAL_MS = 20_000;
 const VALOR_CANCELADAS_HOJE_INICIAL = 0;
 const CONFIGURACAO_GRAFICO_VALORES: ChartConfig = {
   valor: { label: "Valor", color: "var(--chart-1)" },
@@ -90,6 +91,7 @@ const CARTOES_STATUS = [
   },
   { id: "7", nome: "Em Expedição", estilo: "border-white bg-white text-slate-950" },
 ] as const;
+const IDS_COMBO_STATUS = CARTOES_STATUS.slice(0, 5).map(({ id }) => id);
 const formatadorValorCompacto = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
@@ -209,7 +211,7 @@ export function PainelModulo({
 }) {
   const [ordens, setOrdens] = useState<OrdemWMS[]>([]);
   const [statusPedidos, setStatusPedidos] = useState<StatusPedido[]>([]);
-  const [statusSelecionado, setStatusSelecionado] = useState<string | null>(null);
+  const [statusSelecionados, setStatusSelecionados] = useState<string[]>([]);
   const [fretesPorStatus, setFretesPorStatus] = useState<FretePorStatus[]>([]);
   const [quantidadeCanceladasHoje, setQuantidadeCanceladasHoje] = useState(0);
   const [valorCanceladasHoje, setValorCanceladasHoje] = useState(VALOR_CANCELADAS_HOJE_INICIAL);
@@ -313,13 +315,20 @@ export function PainelModulo({
     let timeout: number;
     const avancarStatus = () => {
       if (indiceStatus === CARTOES_STATUS.length) {
-        setStatusSelecionado(null);
-        indiceStatus = 0;
-        timeout = window.setTimeout(avancarStatus, ATRASO_INICIO_CICLO_STATUS_MS);
+        setStatusSelecionados([]);
+        indiceStatus += 1;
+        timeout = window.setTimeout(avancarStatus, DURACAO_VISAO_GERAL_MS);
         return;
       }
 
-      setStatusSelecionado(CARTOES_STATUS[indiceStatus]!.id);
+      if (indiceStatus === CARTOES_STATUS.length + 1) {
+        setStatusSelecionados(IDS_COMBO_STATUS);
+        indiceStatus = 0;
+        timeout = window.setTimeout(avancarStatus, DURACAO_VISAO_GERAL_MS);
+        return;
+      }
+
+      setStatusSelecionados([CARTOES_STATUS[indiceStatus]!.id]);
       indiceStatus += 1;
       timeout = window.setTimeout(avancarStatus, DURACAO_STATUS_MS);
     };
@@ -331,9 +340,10 @@ export function PainelModulo({
     };
   }, [exibirGraficos]);
 
-  const ordensVisiveis = statusSelecionado
-    ? ordens.filter((ordem) => ordem.statusId === statusSelecionado)
-    : ordens;
+  const ordensVisiveis =
+    statusSelecionados.length > 0
+      ? ordens.filter((ordem) => statusSelecionados.includes(ordem.statusId ?? ""))
+      : ordens;
   const ordensPorIdade = FAIXAS_IDADE_ORDENS.map((faixa) => ({
     ...faixa,
     quantidade: 0,
@@ -359,12 +369,14 @@ export function PainelModulo({
     const faixa = ordensPorIdade.find(({ id }) => id === faixaId);
     if (faixa) faixa.quantidade += 1;
   }
-  const statusPedidosVisiveis = statusSelecionado
-    ? statusPedidos.filter((status) => status.id === statusSelecionado)
-    : statusPedidos;
-  const fretesPorStatusVisiveis = statusSelecionado
-    ? fretesPorStatus.filter((frete) => frete.id === statusSelecionado)
-    : fretesPorStatus;
+  const statusPedidosVisiveis =
+    statusSelecionados.length > 0
+      ? statusPedidos.filter((status) => statusSelecionados.includes(status.id))
+      : statusPedidos;
+  const fretesPorStatusVisiveis =
+    statusSelecionados.length > 0
+      ? fretesPorStatus.filter((frete) => statusSelecionados.includes(frete.id))
+      : fretesPorStatus;
   const estadosDestinatarioVisiveis = (() => {
     const estados = new Map<string, EstadoDestinatario>();
     for (const ordem of ordensVisiveis) {
@@ -494,26 +506,38 @@ export function PainelModulo({
             className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2 xl:grid-cols-7"
             role="group"
             aria-label={
-              statusSelecionado
-                ? `Filtrando por ${CARTOES_STATUS.find(({ id }) => id === statusSelecionado)?.nome}`
+              statusSelecionados.length > 0
+                ? `Filtrando por ${CARTOES_STATUS.filter(({ id }) =>
+                    statusSelecionados.includes(id),
+                  )
+                    .map(({ nome }) => nome)
+                    .join(", ")}`
                 : "Todos os status ativos"
             }
           >
             {CARTOES_STATUS.map((cartao) => {
               const quantidade =
                 statusPedidos.find((status) => status.id === cartao.id)?.quantidade ?? 0;
-              const selecionado = statusSelecionado === cartao.id;
+              const selecionado = statusSelecionados.includes(cartao.id);
               return (
                 <button
                   key={cartao.id}
                   type="button"
                   aria-pressed={selecionado}
-                  aria-label={`${selecionado ? "Remover filtro de" : "Filtrar por"} ${cartao.nome}`}
+                  aria-label={`${
+                    selecionado
+                      ? statusSelecionados.length > 1
+                        ? "Filtrar somente por"
+                        : "Remover filtro de"
+                      : "Filtrar por"
+                  } ${cartao.nome}`}
                   onClick={() =>
-                    setStatusSelecionado((atual) => (atual === cartao.id ? null : cartao.id))
+                    setStatusSelecionados((atuais) =>
+                      atuais.length === 1 && atuais[0] === cartao.id ? [] : [cartao.id],
+                    )
                   }
                   className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1.5 py-1.5 text-center shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:min-h-16 sm:px-2 sm:py-2 ${
-                    statusSelecionado && !selecionado
+                    statusSelecionados.length > 0 && !selecionado
                       ? "border-border bg-muted/50 text-muted-foreground opacity-55 hover:opacity-90"
                       : `${cartao.estilo} ${selecionado ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`
                   }`}
