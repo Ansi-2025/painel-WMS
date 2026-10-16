@@ -4,10 +4,17 @@ export type EstadoDestinatario = {
   uf: string;
   nome: string;
   quantidade: number;
+  valor: number;
 };
 
 const CORES_MAPA = ["#17345d", "#1d4e89", "#2673c9", "#4799ef", "#8bc5ff"];
 const formatarQuantidade = new Intl.NumberFormat("pt-BR");
+const formatadorValorCompacto = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
 
 function corDoEstado(quantidade: number): string {
   if (quantidade <= 0) return "#10213b";
@@ -27,7 +34,7 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
 
   return (
     <section
-      className="panel order-2 flex min-w-0 flex-col p-4 lg:p-5 xl:col-span-3 2xl:col-span-7"
+      className="panel order-2 flex min-w-0 flex-col p-4 lg:p-5 xl:col-span-4 2xl:col-span-8"
       aria-label="Distribuição das ordens pelo estado do destinatário"
     >
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
@@ -40,12 +47,15 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
           </p>
         </div>
         <p className="text-sm font-semibold tabular-nums text-foreground">
-          Total mapeado: {formatarQuantidade.format(totalPedidos)}
+          {formatarQuantidade.format(totalPedidos)} ordens mapeadas ·{" "}
+          {formatadorValorCompacto.format(
+            estados.reduce((total, estado) => total + estado.valor, 0),
+          )}
         </p>
       </div>
 
-      <div className="grid min-h-0 flex-1 items-center gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
-        <div className="flex h-[320px] min-w-0 items-center justify-center lg:h-[370px]">
+      <div className="grid min-h-0 flex-1 items-center gap-4 md:grid-cols-[minmax(0,1fr)_260px]">
+        <div className="flex h-[420px] min-w-0 items-center justify-center lg:h-[500px]">
           <svg
             viewBox={brazilMap.viewBox}
             role="img"
@@ -66,7 +76,7 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
                 >
                   <title>
                     {local.name} ({local.id.toUpperCase()}): {formatarQuantidade.format(quantidade)}{" "}
-                    pedidos
+                    pedidos · {formatadorValorCompacto.format(estado?.valor ?? 0)}
                   </title>
                 </path>
               );
@@ -94,6 +104,9 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
                     </span>
                     <span className="text-right text-xs tabular-nums text-foreground">
                       {formatarQuantidade.format(estado.quantidade)}
+                      <span className="block font-normal text-muted-foreground">
+                        {formatadorValorCompacto.format(estado.valor)}
+                      </span>
                     </span>
                   </li>
                 ))}

@@ -1,17 +1,7 @@
 import { useServerFn } from "@tanstack/react-start";
 import { ClipboardList, Package, Search } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ComposedChart,
-  LabelList,
-  Line,
-  ReferenceLine,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts";
 import { BarraModulos } from "@/components/BarraModulos";
 import { DistribuicaoEstados, type EstadoDestinatario } from "@/components/DistribuicaoEstados";
 import { Input } from "@/components/ui/input";
@@ -41,17 +31,13 @@ import {
   type ConsultaEship,
 } from "@/lib/wms-config";
 
-const INTERVALO_SEGUNDOS = 30;
+const INTERVALO_SEGUNDOS = 60;
 const CONFIGURACAO_GRAFICO_VALORES: ChartConfig = {
   valor: { label: "Valor", color: "var(--chart-1)" },
 };
 const CONFIGURACAO_GRAFICO_PEDIDOS: ChartConfig = {
   quantidade: { label: "Pedidos", color: "var(--chart-1)" },
   valor: { label: "Valor total", color: "var(--chart-2)" },
-};
-const CONFIGURACAO_GRAFICO_PARETO: ChartConfig = {
-  quantidade: { label: "Ordens", color: "var(--chart-1)" },
-  percentualAcumulado: { label: "Acumulado", color: "var(--chart-2)" },
 };
 const formatadorValorCompacto = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -97,16 +83,10 @@ type StatusPedido = {
   valor: number;
 };
 
-type TransportePedido = {
-  nome: string;
-  quantidade: number;
-};
-
 type ConsultaFn = (options: { data: ConsultaEship }) => Promise<{
   ordens: OrdemWMS[];
   statusPedidos?: StatusPedido[];
   fretesPorStatus?: FretePorStatus[];
-  transportePedidos?: TransportePedido[];
   estadosDestinatario?: EstadoDestinatario[];
 }>;
 
@@ -126,7 +106,6 @@ export function PainelModulo({
   const [ordens, setOrdens] = useState<OrdemWMS[]>([]);
   const [statusPedidos, setStatusPedidos] = useState<StatusPedido[]>([]);
   const [fretesPorStatus, setFretesPorStatus] = useState<FretePorStatus[]>([]);
-  const [transportePedidos, setTransportePedidos] = useState<TransportePedido[]>([]);
   const [estadosDestinatario, setEstadosDestinatario] = useState<EstadoDestinatario[]>([]);
   const [buscaFila, setBuscaFila] = useState("");
   const [apiAtiva, setApiAtiva] = useState(true);
@@ -178,7 +157,6 @@ export function PainelModulo({
       setOrdens(dados.ordens);
       setStatusPedidos(dados.statusPedidos ?? []);
       setFretesPorStatus(dados.fretesPorStatus ?? []);
-      setTransportePedidos(dados.transportePedidos ?? []);
       setEstadosDestinatario(dados.estadosDestinatario ?? []);
       setConectado(true);
       setAtualizadoEm(formatarHora(new Date()));
@@ -215,38 +193,10 @@ export function PainelModulo({
   const filasFiltradas = filas.filter((fila) =>
     fila.nome.toLocaleLowerCase("pt-BR").includes(buscaFila.trim().toLocaleLowerCase("pt-BR")),
   );
-  const totalPedidosPorTransporte = transportePedidos.reduce(
-    (total, transporte) => total + transporte.quantidade,
-    0,
-  );
-  const paretoTransporte = (() => {
-    const limiteTransportes = 12;
-    const itens =
-      transportePedidos.length > limiteTransportes
-        ? [
-            ...transportePedidos.slice(0, limiteTransportes),
-            {
-              nome: "Demais transportes",
-              quantidade: transportePedidos
-                .slice(limiteTransportes)
-                .reduce((total, transporte) => total + transporte.quantidade, 0),
-            },
-          ]
-        : transportePedidos;
-    let acumulado = 0;
-    return itens.map((transporte) => {
-      acumulado += transporte.quantidade;
-      return {
-        ...transporte,
-        percentualAcumulado:
-          totalPedidosPorTransporte > 0 ? (acumulado / totalPedidosPorTransporte) * 100 : 0,
-      };
-    });
-  })();
   return (
     <div className="min-h-screen bg-background text-foreground">
       <BarraModulos />
-      <div className="mx-auto flex min-h-screen max-w-[1800px] flex-col gap-4 p-4 pl-20 lg:gap-6 lg:p-6 lg:pl-22">
+      <div className="mx-auto flex min-h-screen w-full max-w-none flex-col gap-4 p-4 pl-20 lg:gap-6 lg:p-6 lg:pl-22">
         <header className="panel flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-[0.12em] text-foreground lg:text-4xl">
@@ -331,7 +281,7 @@ export function PainelModulo({
             className="grid gap-3 xl:grid-cols-6 2xl:grid-cols-12"
             aria-label="Indicadores do dashboard"
           >
-            <div className="panel order-1 min-w-0 p-4 lg:p-5 xl:col-span-3 2xl:col-span-5">
+            <div className="panel order-1 min-w-0 p-4 lg:p-5 xl:col-span-2 2xl:col-span-4">
               <h2 className="mb-3 text-base font-semibold text-foreground">Pedidos por status</h2>
               {statusPedidos.length > 0 ? (
                 <ChartContainer
@@ -403,7 +353,7 @@ export function PainelModulo({
 
             <DistribuicaoEstados estados={estadosDestinatario} />
 
-            <div className="panel order-4 min-w-0 p-4 lg:p-5 xl:col-span-3 2xl:col-span-3">
+            <div className="panel order-4 min-w-0 p-4 lg:p-5 xl:col-span-2 2xl:col-span-5">
               <h2 className="mb-3 text-base font-semibold text-foreground">
                 Valor do frete por status
               </h2>
@@ -460,7 +410,7 @@ export function PainelModulo({
               )}
             </div>
 
-            <div className="panel order-3 min-w-0 p-4 lg:p-5 xl:col-span-3 2xl:col-span-5">
+            <div className="panel order-3 min-w-0 p-4 lg:p-5 xl:col-span-4 2xl:col-span-7">
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="flex items-center gap-3">
@@ -537,100 +487,6 @@ export function PainelModulo({
                   </tbody>
                 </table>
               </div>
-            </div>
-
-            <div className="panel order-5 min-w-0 p-4 lg:p-5 xl:col-span-6 2xl:col-span-4">
-              <div className="mb-3">
-                <h2 className="text-base font-semibold text-foreground">
-                  Pareto de pedidos por transporte
-                </h2>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Top 12 + demais · barras: ordens · linha: percentual acumulado
-                </p>
-              </div>
-              {paretoTransporte.length > 0 ? (
-                <ChartContainer
-                  config={CONFIGURACAO_GRAFICO_PARETO}
-                  className="h-[280px] aspect-auto"
-                >
-                  <ComposedChart
-                    data={paretoTransporte}
-                    margin={{ top: 30, right: 8, left: 0, bottom: 82 }}
-                  >
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="nome"
-                      angle={-32}
-                      textAnchor="end"
-                      interval={0}
-                      height={96}
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fontSize: 11 }}
-                    />
-                    <YAxis
-                      yAxisId="ordens"
-                      allowDecimals={false}
-                      tickFormatter={(valor: number) => formatarInteiro(valor)}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      yAxisId="percentual"
-                      orientation="right"
-                      domain={[0, 100]}
-                      tickFormatter={(valor: number) => `${Math.round(valor)}%`}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <ChartTooltip
-                      cursor={false}
-                      content={
-                        <ChartTooltipContent
-                          formatter={(valor, nome) =>
-                            nome === "percentualAcumulado"
-                              ? `${Number(valor).toFixed(1)}%`
-                              : formatarInteiro(Number(valor))
-                          }
-                        />
-                      }
-                    />
-                    <ReferenceLine
-                      yAxisId="percentual"
-                      y={80}
-                      stroke="var(--muted-foreground)"
-                      strokeDasharray="5 5"
-                    />
-                    <Bar
-                      yAxisId="ordens"
-                      dataKey="quantidade"
-                      fill="var(--color-quantidade)"
-                      radius={[6, 6, 0, 0]}
-                    >
-                      <LabelList
-                        dataKey="quantidade"
-                        position="top"
-                        formatter={(quantidade: number) => formatarInteiro(quantidade)}
-                        fill="var(--foreground)"
-                        fontSize={11}
-                        fontWeight={600}
-                      />
-                    </Bar>
-                    <Line
-                      yAxisId="percentual"
-                      dataKey="percentualAcumulado"
-                      type="monotone"
-                      stroke="var(--color-percentualAcumulado)"
-                      strokeWidth={3}
-                      dot={{ r: 3 }}
-                    />
-                  </ComposedChart>
-                </ChartContainer>
-              ) : (
-                <p className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
-                  Nenhum dado de transporte encontrado na API.
-                </p>
-              )}
             </div>
           </section>
         )}

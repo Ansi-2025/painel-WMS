@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { paraNumero, type OrdemWMS } from "./wms-api";
-import { PARAMETROS_ESHIP, STATUS_ORDEM, STATUS_ORDEM_OPERACIONAIS } from "./wms-parameters";
+import { STATUS_ORDEM, STATUS_ORDEM_OPERACIONAIS } from "./wms-parameters";
 import { ConsultaEshipSchema, type ConsultaEship } from "./wms-config";
 
 const TIMEOUT_REQUISICAO_ESHIP_MS = 30_000;
@@ -20,31 +20,19 @@ type OrdemDetalhadaEship = {
   id?: number | string;
   idStatus?: number | string;
   status?: { id?: number | string; descricao?: string };
-  transporte?: string | number | { id?: string | number; descricao?: string; nome?: string };
-  nomeTransporte?: string;
   enderecoDestinatario?: {
     municipio?: {
       estado?: { sigla?: string; descricao?: string };
     };
   };
-  infosAdicionais?: {
-    transporte?: string;
-    nomeTransporte?: string;
-  };
   ordem?: {
     id?: number | string;
     idStatus?: number | string;
     status?: { id?: number | string; descricao?: string };
-    transporte?: string | number | { id?: string | number; descricao?: string; nome?: string };
-    nomeTransporte?: string;
     enderecoDestinatario?: {
       municipio?: {
         estado?: { sigla?: string; descricao?: string };
       };
-    };
-    infosAdicionais?: {
-      transporte?: string;
-      nomeTransporte?: string;
     };
   };
 };
@@ -181,12 +169,8 @@ async function consultarEship(consulta: ConsultaEship): Promise<{ ordens: OrdemW
             valordaordem: o.infosAdicionais.valordaordem,
             valorfrete: o.infosAdicionais.valorfrete,
             fila: o.infosAdicionais.fila,
-            transporte: o.infosAdicionais.transporte,
-            nomeTransporte: o.infosAdicionais.nomeTransporte,
           }
         : undefined,
-      transporte: o.transporte,
-      nomeTransporte: o.nomeTransporte,
     })),
   };
 }
@@ -204,15 +188,11 @@ type StatusPedido = {
   valor: number;
 };
 
-type TransportePedido = {
-  nome: string;
-  quantidade: number;
-};
-
 type EstadoDestinatario = {
   uf: string;
   nome: string;
   quantidade: number;
+  valor: number;
 };
 
 function obterStatusOrdem(ordem: OrdemDetalhadaEship): { id: string; nome?: string } | undefined {
@@ -225,36 +205,9 @@ function obterStatusOrdem(ordem: OrdemDetalhadaEship): { id: string; nome?: stri
   };
 }
 
-const nomesTransportes = new Map(
-  (PARAMETROS_ESHIP.find(({ chave }) => chave === "transporte")?.opcoes ?? []).map(
-    ({ id, descricao }) => [id, descricao],
-  ),
-);
-
-function obterNomeTransporte(ordem: OrdemDetalhadaEship): string | undefined {
-  const valor =
-    ordem.nomeTransporte ??
-    ordem.ordem?.nomeTransporte ??
-    ordem.infosAdicionais?.nomeTransporte ??
-    ordem.ordem?.infosAdicionais?.nomeTransporte ??
-    ordem.transporte ??
-    ordem.ordem?.transporte ??
-    ordem.infosAdicionais?.transporte ??
-    ordem.ordem?.infosAdicionais?.transporte;
-  if (typeof valor === "object") {
-    const nome = valor.descricao ?? valor.nome;
-    if (nome?.trim()) return nome.trim();
-    if (valor.id !== undefined) return nomesTransportes.get(String(valor.id)) ?? String(valor.id);
-    return undefined;
-  }
-  if (valor === undefined || String(valor).trim() === "") return undefined;
-  const texto = String(valor).trim();
-  return nomesTransportes.get(texto) ?? texto;
-}
-
 function obterEstadoDestinatario(
   ordem: OrdemDetalhadaEship,
-): Omit<EstadoDestinatario, "quantidade"> | undefined {
+): Pick<EstadoDestinatario, "uf" | "nome"> | undefined {
   const estado =
     ordem.enderecoDestinatario?.municipio?.estado ??
     ordem.ordem?.enderecoDestinatario?.municipio?.estado;
@@ -268,7 +221,6 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
   ordens: OrdemWMS[];
   statusPedidos: StatusPedido[];
   fretesPorStatus: FretePorStatus[];
-  transportePedidos: TransportePedido[];
   estadosDestinatario: EstadoDestinatario[];
 }> {
   const parametroStatus = consulta.parametros["statusOrdem"]?.trim();
@@ -281,7 +233,6 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
       ordens: [],
       statusPedidos: [],
       fretesPorStatus: [],
-      transportePedidos: [],
       estadosDestinatario: [],
     };
   }
@@ -298,7 +249,7 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
     ...consultaDashboard,
     parametros: {
       ...consultaDashboard.parametros,
-      ["incrementar"]: `[${[...new Set([...incrementarConfigurado, "75", "86", "91"])].join(",")}]`,
+      ["incrementar"]: `[${[...new Set([...incrementarConfigurado, "75", "91"])].join(",")}]`,
     },
   };
   const [resultadoInfos, ordensDetalhadas] = await Promise.all([
@@ -307,8 +258,7 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
   ]);
 
   const statusPorOrdem = new Map<string, { id: string; nome?: string }>();
-  const transportePorOrdem = new Map<string, string>();
-  const estadoDestinatarioPorOrdem = new Map<string, Omit<EstadoDestinatario, "quantidade">>();
+  const estadoDestinatarioPorOrdem = new Map<string, Pick<EstadoDestinatario, "uf" | "nome">>();
   const contagemPorStatus = new Map<string, number>();
   const nomePorStatus = new Map(status.map(({ id, descricao }) => [id, descricao]));
   for (const ordem of ordensDetalhadas) {
@@ -317,8 +267,6 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
     if (identificador === undefined || !statusOrdem || !statusSelecionados.has(statusOrdem.id))
       continue;
     statusPorOrdem.set(String(identificador), statusOrdem);
-    const nomeTransporte = obterNomeTransporte(ordem);
-    if (nomeTransporte) transportePorOrdem.set(String(identificador), nomeTransporte);
     const estadoDestinatario = obterEstadoDestinatario(ordem);
     if (estadoDestinatario) {
       estadoDestinatarioPorOrdem.set(String(identificador), estadoDestinatario);
@@ -331,11 +279,7 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
   }
 
   const valorPorStatus = new Map<string, number>();
-  const transportePorNome = new Map<string, number>();
-  const contagemPorEstadoDestinatario = new Map<
-    string,
-    Omit<EstadoDestinatario, "quantidade"> & { quantidade: number }
-  >();
+  const contagemPorEstadoDestinatario = new Map<string, EstadoDestinatario>();
   for (const ordem of resultadoInfos.ordens) {
     const identificador = String(ordem.ordem);
     const statusOrdem = statusPorOrdem.get(identificador);
@@ -345,28 +289,17 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
         (valorPorStatus.get(statusOrdem.id) ?? 0) + paraNumero(ordem.infosAdicionais?.valordaordem),
       );
     }
-    const nomeTransporte =
-      ordem.nomeTransporte ??
-      ordem.infosAdicionais?.nomeTransporte ??
-      (ordem.transporte
-        ? (nomesTransportes.get(ordem.transporte) ?? ordem.transporte)
-        : undefined) ??
-      (ordem.infosAdicionais?.transporte
-        ? (nomesTransportes.get(ordem.infosAdicionais.transporte) ??
-          ordem.infosAdicionais.transporte)
-        : undefined) ??
-      transportePorOrdem.get(identificador) ??
-      "Sem transporte";
-    transportePorNome.set(nomeTransporte, (transportePorNome.get(nomeTransporte) ?? 0) + 1);
     const estadoDestinatario = estadoDestinatarioPorOrdem.get(identificador);
     if (estadoDestinatario) {
       const existente = contagemPorEstadoDestinatario.get(estadoDestinatario.uf);
       if (existente) {
         existente.quantidade += 1;
+        existente.valor += paraNumero(ordem.infosAdicionais?.valordaordem);
       } else {
         contagemPorEstadoDestinatario.set(estadoDestinatario.uf, {
           ...estadoDestinatario,
           quantidade: 1,
+          valor: paraNumero(ordem.infosAdicionais?.valordaordem),
         });
       }
     }
@@ -403,9 +336,6 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
       nome: nomePorStatus.get(id) ?? descricao,
       valor: fretePorStatus.get(id) ?? 0,
     })),
-    transportePedidos: [...transportePorNome]
-      .map(([nome, quantidade]) => ({ nome, quantidade }))
-      .sort((a, b) => b.quantidade - a.quantidade || a.nome.localeCompare(b.nome, "pt-BR")),
     estadosDestinatario: [...contagemPorEstadoDestinatario.values()].sort(
       (a, b) => b.quantidade - a.quantidade || a.nome.localeCompare(b.nome, "pt-BR"),
     ),

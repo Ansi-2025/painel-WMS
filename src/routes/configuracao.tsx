@@ -166,7 +166,7 @@ function Configuracao() {
               </Label>
               <p className="mt-1 text-sm text-muted-foreground">
                 {apiAtiva
-                  ? "Ativas neste navegador. Os módulos atualizam a cada 30 segundos."
+                  ? "Ativas neste navegador. Os módulos atualizam a cada 60 segundos."
                   : "Pausadas neste navegador em todos os módulos."}
               </p>
             </div>
