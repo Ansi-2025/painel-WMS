@@ -579,26 +579,29 @@ export function PainelModulo({
                     {statusPedidosVisiveis.map((status) => (
                       <li
                         key={status.id}
-                        className="grid min-h-0 min-w-0 grid-cols-[8px_minmax(0,1fr)_auto] grid-rows-[16px_12px] items-center gap-x-1.5 sm:grid-cols-[10px_minmax(0,1fr)_auto] sm:gap-x-2"
+                        className="grid h-[30px] min-h-0 min-w-0 grid-cols-[10px_minmax(0,1fr)_auto_auto] items-center gap-x-1 sm:grid-cols-[12px_minmax(0,1fr)_auto_auto] sm:gap-x-1.5"
                       >
                         <span
                           aria-hidden="true"
-                          className="size-2 rounded-full sm:size-2.5"
+                          className="size-2.5 rounded-full sm:size-3"
                           style={{
                             backgroundColor: CORES_GRAFICO_STATUS[status.id] ?? "var(--chart-1)",
                           }}
                         />
                         <span
-                          className="truncate text-[11px] font-medium leading-4 text-muted-foreground sm:text-xs"
+                          className="truncate text-[13px] font-medium leading-5 text-muted-foreground sm:text-base"
                           title={status.nome}
                         >
                           {nomeStatusResumido(status.nome)}
                         </span>
-                        <span className="text-base font-bold leading-5 tabular-nums text-foreground sm:text-lg">
-                          {formatarInteiro(status.quantidade)}
-                        </span>
-                        <span className="col-start-2 col-end-4 truncate text-[10px] leading-3 text-muted-foreground">
+                        <span
+                          className="truncate text-xs leading-4 text-muted-foreground sm:text-sm"
+                          title={formatarValorCompacto(status.valor)}
+                        >
                           {formatarValorCompacto(status.valor)}
+                        </span>
+                        <span className="pl-1 text-xl font-bold leading-6 tabular-nums text-foreground sm:text-2xl">
+                          {formatarInteiro(status.quantidade)}
                         </span>
                       </li>
                     ))}
@@ -620,7 +623,7 @@ export function PainelModulo({
               {fretesPorStatusVisiveis.length > 0 ? (
                 <ChartContainer
                   config={CONFIGURACAO_GRAFICO_VALORES}
-                  className="h-[180px] aspect-auto sm:h-[200px]"
+                  className="h-[240px] aspect-auto sm:h-[250px]"
                 >
                   <BarChart
                     data={fretesPorStatusVisiveis}
@@ -638,14 +641,7 @@ export function PainelModulo({
                       axisLine={false}
                       tick={{ fontSize: 12 }}
                     />
-                    <YAxis
-                      tickFormatter={(valor: number) =>
-                        new Intl.NumberFormat("pt-BR", { notation: "compact" }).format(valor)
-                      }
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fontSize: 12 }}
-                    />
+                    <YAxis width={0} tick={false} tickLine={false} axisLine={false} />
                     <ChartTooltip
                       cursor={false}
                       content={
