@@ -22,6 +22,11 @@ type OrdemDetalhadaEship = {
   status?: { id?: number | string; descricao?: string };
   transporte?: string | number | { id?: string | number; descricao?: string; nome?: string };
   nomeTransporte?: string;
+  enderecoDestinatario?: {
+    municipio?: {
+      estado?: { sigla?: string; descricao?: string };
+    };
+  };
   infosAdicionais?: {
     transporte?: string;
     nomeTransporte?: string;
@@ -32,6 +37,11 @@ type OrdemDetalhadaEship = {
     status?: { id?: number | string; descricao?: string };
     transporte?: string | number | { id?: string | number; descricao?: string; nome?: string };
     nomeTransporte?: string;
+    enderecoDestinatario?: {
+      municipio?: {
+        estado?: { sigla?: string; descricao?: string };
+      };
+    };
     infosAdicionais?: {
       transporte?: string;
       nomeTransporte?: string;
@@ -199,6 +209,12 @@ type TransportePedido = {
   quantidade: number;
 };
 
+type EstadoDestinatario = {
+  uf: string;
+  nome: string;
+  quantidade: number;
+};
+
 function obterStatusOrdem(ordem: OrdemDetalhadaEship): { id: string; nome?: string } | undefined {
   const status = ordem.status ?? ordem.ordem?.status;
   const id = status?.id ?? ordem.idStatus ?? ordem.ordem?.idStatus;
@@ -236,11 +252,24 @@ function obterNomeTransporte(ordem: OrdemDetalhadaEship): string | undefined {
   return nomesTransportes.get(texto) ?? texto;
 }
 
+function obterEstadoDestinatario(
+  ordem: OrdemDetalhadaEship,
+): Omit<EstadoDestinatario, "quantidade"> | undefined {
+  const estado =
+    ordem.enderecoDestinatario?.municipio?.estado ??
+    ordem.ordem?.enderecoDestinatario?.municipio?.estado;
+  const uf = estado?.sigla?.trim().toUpperCase();
+  const nome = estado?.descricao?.trim();
+  if (!uf || !nome) return undefined;
+  return { uf, nome };
+}
+
 async function consultarDashboard(consulta: ConsultaEship): Promise<{
   ordens: OrdemWMS[];
   statusPedidos: StatusPedido[];
   fretesPorStatus: FretePorStatus[];
   transportePedidos: TransportePedido[];
+  estadosDestinatario: EstadoDestinatario[];
 }> {
   const parametroStatus = consulta.parametros["statusOrdem"]?.trim();
   const statusSelecionados = parametroStatus
@@ -248,7 +277,13 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
     : new Set(STATUS_ORDEM_OPERACIONAIS.map(({ id }) => id));
   const status = STATUS_ORDEM.filter(({ id }) => statusSelecionados.has(id));
   if (status.length === 0) {
-    return { ordens: [], statusPedidos: [], fretesPorStatus: [], transportePedidos: [] };
+    return {
+      ordens: [],
+      statusPedidos: [],
+      fretesPorStatus: [],
+      transportePedidos: [],
+      estadosDestinatario: [],
+    };
   }
 
   const consultaDashboard: ConsultaEship = {
@@ -258,13 +293,22 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
       ["statusOrdem"]: `[${status.map(({ id }) => id).join(",")}]`,
     },
   };
+  const incrementarConfigurado = consultaDashboard.parametros["incrementar"]?.match(/\d+/g) ?? [];
+  const consultaDetalhada: ConsultaEship = {
+    ...consultaDashboard,
+    parametros: {
+      ...consultaDashboard.parametros,
+      ["incrementar"]: `[${[...new Set([...incrementarConfigurado, "75", "86", "91"])].join(",")}]`,
+    },
+  };
   const [resultadoInfos, ordensDetalhadas] = await Promise.all([
     consultarEship(consultaDashboard),
-    consultarPaginasEship<OrdemDetalhadaEship>(consultaDashboard, "webServiceGetOrdem"),
+    consultarPaginasEship<OrdemDetalhadaEship>(consultaDetalhada, "webServiceGetOrdem"),
   ]);
 
   const statusPorOrdem = new Map<string, { id: string; nome?: string }>();
   const transportePorOrdem = new Map<string, string>();
+  const estadoDestinatarioPorOrdem = new Map<string, Omit<EstadoDestinatario, "quantidade">>();
   const contagemPorStatus = new Map<string, number>();
   const nomePorStatus = new Map(status.map(({ id, descricao }) => [id, descricao]));
   for (const ordem of ordensDetalhadas) {
@@ -275,6 +319,10 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
     statusPorOrdem.set(String(identificador), statusOrdem);
     const nomeTransporte = obterNomeTransporte(ordem);
     if (nomeTransporte) transportePorOrdem.set(String(identificador), nomeTransporte);
+    const estadoDestinatario = obterEstadoDestinatario(ordem);
+    if (estadoDestinatario) {
+      estadoDestinatarioPorOrdem.set(String(identificador), estadoDestinatario);
+    }
     if (statusOrdem.nome) nomePorStatus.set(statusOrdem.id, statusOrdem.nome);
   }
 
@@ -284,6 +332,10 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
 
   const valorPorStatus = new Map<string, number>();
   const transportePorNome = new Map<string, number>();
+  const contagemPorEstadoDestinatario = new Map<
+    string,
+    Omit<EstadoDestinatario, "quantidade"> & { quantidade: number }
+  >();
   for (const ordem of resultadoInfos.ordens) {
     const identificador = String(ordem.ordem);
     const statusOrdem = statusPorOrdem.get(identificador);
@@ -306,6 +358,18 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
       transportePorOrdem.get(identificador) ??
       "Sem transporte";
     transportePorNome.set(nomeTransporte, (transportePorNome.get(nomeTransporte) ?? 0) + 1);
+    const estadoDestinatario = estadoDestinatarioPorOrdem.get(identificador);
+    if (estadoDestinatario) {
+      const existente = contagemPorEstadoDestinatario.get(estadoDestinatario.uf);
+      if (existente) {
+        existente.quantidade += 1;
+      } else {
+        contagemPorEstadoDestinatario.set(estadoDestinatario.uf, {
+          ...estadoDestinatario,
+          quantidade: 1,
+        });
+      }
+    }
   }
 
   const ordensSemStatus = resultadoInfos.ordens.filter(
@@ -342,6 +406,9 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
     transportePedidos: [...transportePorNome]
       .map(([nome, quantidade]) => ({ nome, quantidade }))
       .sort((a, b) => b.quantidade - a.quantidade || a.nome.localeCompare(b.nome, "pt-BR")),
+    estadosDestinatario: [...contagemPorEstadoDestinatario.values()].sort(
+      (a, b) => b.quantidade - a.quantidade || a.nome.localeCompare(b.nome, "pt-BR"),
+    ),
   };
 }
 

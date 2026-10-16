@@ -13,6 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { BarraModulos } from "@/components/BarraModulos";
+import { DistribuicaoEstados, type EstadoDestinatario } from "@/components/DistribuicaoEstados";
 import { Input } from "@/components/ui/input";
 import {
   ChartContainer,
@@ -73,6 +74,16 @@ function nomeStatusResumido(nome: string): string {
   return nomes[nome] ?? nome;
 }
 
+function corIndicadorFila(nome: string): string {
+  const familia = nome.toLocaleUpperCase("pt-BR");
+  if (familia.startsWith("PEÇA")) return "bg-sky-400";
+  if (familia.startsWith("MISTO")) return "bg-emerald-400";
+  if (familia.startsWith("ONDA")) return "bg-amber-500";
+  if (familia.startsWith("B2B")) return "bg-violet-500";
+  if (familia.startsWith("DEDICADO")) return "bg-rose-500";
+  return "bg-primary";
+}
+
 type FretePorStatus = {
   id: string;
   nome: string;
@@ -96,6 +107,7 @@ type ConsultaFn = (options: { data: ConsultaEship }) => Promise<{
   statusPedidos?: StatusPedido[];
   fretesPorStatus?: FretePorStatus[];
   transportePedidos?: TransportePedido[];
+  estadosDestinatario?: EstadoDestinatario[];
 }>;
 
 export function PainelModulo({
@@ -115,6 +127,7 @@ export function PainelModulo({
   const [statusPedidos, setStatusPedidos] = useState<StatusPedido[]>([]);
   const [fretesPorStatus, setFretesPorStatus] = useState<FretePorStatus[]>([]);
   const [transportePedidos, setTransportePedidos] = useState<TransportePedido[]>([]);
+  const [estadosDestinatario, setEstadosDestinatario] = useState<EstadoDestinatario[]>([]);
   const [buscaFila, setBuscaFila] = useState("");
   const [apiAtiva, setApiAtiva] = useState(true);
   const [preferenciaApiCarregada, setPreferenciaApiCarregada] = useState(false);
@@ -166,6 +179,7 @@ export function PainelModulo({
       setStatusPedidos(dados.statusPedidos ?? []);
       setFretesPorStatus(dados.fretesPorStatus ?? []);
       setTransportePedidos(dados.transportePedidos ?? []);
+      setEstadosDestinatario(dados.estadosDestinatario ?? []);
       setConectado(true);
       setAtualizadoEm(formatarHora(new Date()));
     } catch {
@@ -313,8 +327,11 @@ export function PainelModulo({
         )}
 
         {exibirGraficos && (
-          <section className="grid gap-3 xl:grid-cols-4" aria-label="Indicadores do dashboard">
-            <div className="panel order-1 min-w-0 p-4 lg:p-5 xl:col-span-2">
+          <section
+            className="grid gap-3 xl:grid-cols-6 2xl:grid-cols-12"
+            aria-label="Indicadores do dashboard"
+          >
+            <div className="panel order-1 min-w-0 p-4 lg:p-5 xl:col-span-3 2xl:col-span-5">
               <h2 className="mb-3 text-base font-semibold text-foreground">Pedidos por status</h2>
               {statusPedidos.length > 0 ? (
                 <ChartContainer
@@ -384,7 +401,9 @@ export function PainelModulo({
               )}
             </div>
 
-            <div className="panel order-2 min-w-0 p-4 lg:p-5 xl:col-span-2">
+            <DistribuicaoEstados estados={estadosDestinatario} />
+
+            <div className="panel order-4 min-w-0 p-4 lg:p-5 xl:col-span-3 2xl:col-span-3">
               <h2 className="mb-3 text-base font-semibold text-foreground">
                 Valor do frete por status
               </h2>
@@ -441,13 +460,20 @@ export function PainelModulo({
               )}
             </div>
 
-            <div className="panel order-3 min-w-0 p-4 lg:p-5 xl:col-span-2">
+            <div className="panel order-3 min-w-0 p-4 lg:p-5 xl:col-span-3 2xl:col-span-5">
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-base font-semibold text-foreground">Fila por família</h2>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {filasFiltradas.length} de {filas.length} famílias · pedidos e valor total
-                  </p>
+                  <div className="flex items-center gap-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
+                      <ClipboardList aria-hidden="true" className="size-5" />
+                    </span>
+                    <div>
+                      <h2 className="text-base font-semibold text-foreground">Fila por família</h2>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {filasFiltradas.length} de {filas.length} famílias · pedidos e valor total
+                      </p>
+                    </div>
+                  </div>
                 </div>
                 <label className="relative block w-full sm:max-w-sm">
                   <Search
@@ -463,8 +489,8 @@ export function PainelModulo({
                   />
                 </label>
               </div>
-              <div className="max-h-64 overflow-auto rounded-xl border border-border/70">
-                <table className="w-full min-w-[640px] text-left text-sm">
+              <div className="max-h-[320px] overflow-auto rounded-xl border border-border/70">
+                <table className="w-full min-w-[600px] text-left text-sm">
                   <thead className="sticky top-0 bg-card text-xs font-semibold text-muted-foreground">
                     <tr>
                       <th className="px-4 py-3">Família da fila</th>
@@ -479,16 +505,24 @@ export function PainelModulo({
                         key={fila.nome}
                         className="border-t border-border/60 transition-colors hover:bg-primary/10"
                       >
-                        <td className="px-4 py-3 font-medium text-foreground">{fila.nome}</td>
-                        <td className="px-4 py-3 text-right tabular-nums">
+                        <td className="px-4 py-2.5 font-medium text-foreground">
+                          <span className="inline-flex items-center gap-2">
+                            <span
+                              aria-hidden="true"
+                              className={`size-2.5 rounded-full ${corIndicadorFila(fila.nome)}`}
+                            />
+                            {fila.nome}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums">
                           {formatarInteiro(fila.quantidade)}
                         </td>
-                        <td className="px-4 py-3 text-right tabular-nums">
+                        <td className="px-4 py-2.5 text-right tabular-nums">
                           {totalOrdens(ordens) > 0
                             ? `${formatarInteiro((fila.quantidade / totalOrdens(ordens)) * 100)}%`
                             : "0%"}
                         </td>
-                        <td className="px-4 py-3 text-right font-medium tabular-nums text-foreground">
+                        <td className="px-4 py-2.5 text-right font-medium tabular-nums text-foreground">
                           {formatarMoeda(fila.valorTotal)}
                         </td>
                       </tr>
@@ -505,7 +539,7 @@ export function PainelModulo({
               </div>
             </div>
 
-            <div className="panel order-4 min-w-0 p-4 lg:p-5 xl:col-span-2">
+            <div className="panel order-5 min-w-0 p-4 lg:p-5 xl:col-span-6 2xl:col-span-4">
               <div className="mb-3">
                 <h2 className="text-base font-semibold text-foreground">
                   Pareto de pedidos por transporte
@@ -517,7 +551,7 @@ export function PainelModulo({
               {paretoTransporte.length > 0 ? (
                 <ChartContainer
                   config={CONFIGURACAO_GRAFICO_PARETO}
-                  className="h-[320px] aspect-auto"
+                  className="h-[280px] aspect-auto"
                 >
                   <ComposedChart
                     data={paretoTransporte}
@@ -593,7 +627,7 @@ export function PainelModulo({
                   </ComposedChart>
                 </ChartContainer>
               ) : (
-                <p className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">
+                <p className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
                   Nenhum dado de transporte encontrado na API.
                 </p>
               )}
