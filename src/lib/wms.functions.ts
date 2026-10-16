@@ -188,13 +188,6 @@ type StatusPedido = {
   valor: number;
 };
 
-type EstadoDestinatario = {
-  uf: string;
-  nome: string;
-  quantidade: number;
-  valor: number;
-};
-
 function obterStatusOrdem(ordem: OrdemDetalhadaEship): { id: string; nome?: string } | undefined {
   const status = ordem.status ?? ordem.ordem?.status;
   const id = status?.id ?? ordem.idStatus ?? ordem.ordem?.idStatus;
@@ -207,7 +200,7 @@ function obterStatusOrdem(ordem: OrdemDetalhadaEship): { id: string; nome?: stri
 
 function obterEstadoDestinatario(
   ordem: OrdemDetalhadaEship,
-): Pick<EstadoDestinatario, "uf" | "nome"> | undefined {
+): NonNullable<OrdemWMS["estadoDestinatario"]> | undefined {
   const estado =
     ordem.enderecoDestinatario?.municipio?.estado ??
     ordem.ordem?.enderecoDestinatario?.municipio?.estado;
@@ -221,7 +214,6 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
   ordens: OrdemWMS[];
   statusPedidos: StatusPedido[];
   fretesPorStatus: FretePorStatus[];
-  estadosDestinatario: EstadoDestinatario[];
 }> {
   const parametroStatus = consulta.parametros["statusOrdem"]?.trim();
   const statusSelecionados = parametroStatus
@@ -233,7 +225,6 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
       ordens: [],
       statusPedidos: [],
       fretesPorStatus: [],
-      estadosDestinatario: [],
     };
   }
 
@@ -258,7 +249,7 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
   ]);
 
   const statusPorOrdem = new Map<string, { id: string; nome?: string }>();
-  const estadoDestinatarioPorOrdem = new Map<string, Pick<EstadoDestinatario, "uf" | "nome">>();
+  const estadoDestinatarioPorOrdem = new Map<string, NonNullable<OrdemWMS["estadoDestinatario"]>>();
   const contagemPorStatus = new Map<string, number>();
   const nomePorStatus = new Map(status.map(({ id, descricao }) => [id, descricao]));
   for (const ordem of ordensDetalhadas) {
@@ -279,7 +270,6 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
   }
 
   const valorPorStatus = new Map<string, number>();
-  const contagemPorEstadoDestinatario = new Map<string, EstadoDestinatario>();
   for (const ordem of resultadoInfos.ordens) {
     const identificador = String(ordem.ordem);
     const statusOrdem = statusPorOrdem.get(identificador);
@@ -288,20 +278,6 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
         statusOrdem.id,
         (valorPorStatus.get(statusOrdem.id) ?? 0) + paraNumero(ordem.infosAdicionais?.valordaordem),
       );
-    }
-    const estadoDestinatario = estadoDestinatarioPorOrdem.get(identificador);
-    if (estadoDestinatario) {
-      const existente = contagemPorEstadoDestinatario.get(estadoDestinatario.uf);
-      if (existente) {
-        existente.quantidade += 1;
-        existente.valor += paraNumero(ordem.infosAdicionais?.valordaordem);
-      } else {
-        contagemPorEstadoDestinatario.set(estadoDestinatario.uf, {
-          ...estadoDestinatario,
-          quantidade: 1,
-          valor: paraNumero(ordem.infosAdicionais?.valordaordem),
-        });
-      }
     }
   }
 
@@ -323,8 +299,19 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
     );
   }
 
+  const ordensComStatus = resultadoInfos.ordens.map((ordem) => {
+    const identificador = String(ordem.ordem);
+    const statusOrdem = statusPorOrdem.get(identificador);
+    const estadoDestinatario = estadoDestinatarioPorOrdem.get(identificador);
+    return {
+      ...ordem,
+      ...(statusOrdem ? { statusId: statusOrdem.id } : {}),
+      ...(estadoDestinatario ? { estadoDestinatario } : {}),
+    };
+  });
+
   return {
-    ordens: resultadoInfos.ordens,
+    ordens: ordensComStatus,
     statusPedidos: status.map(({ id, descricao }) => ({
       id,
       nome: nomePorStatus.get(id) ?? descricao,
@@ -336,9 +323,6 @@ async function consultarDashboard(consulta: ConsultaEship): Promise<{
       nome: nomePorStatus.get(id) ?? descricao,
       valor: fretePorStatus.get(id) ?? 0,
     })),
-    estadosDestinatario: [...contagemPorEstadoDestinatario.values()].sort(
-      (a, b) => b.quantidade - a.quantidade || a.nome.localeCompare(b.nome, "pt-BR"),
-    ),
   };
 }
 

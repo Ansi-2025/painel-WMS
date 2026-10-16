@@ -61,10 +61,10 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
     >
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <h2 className="text-base font-semibold text-foreground">
+          <h2 className="text-xl font-semibold text-foreground">
             Distribuição das ordens por estado
           </h2>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-base text-muted-foreground">
             Estado do destinatário no endereço do cliente
           </p>
         </div>
@@ -119,7 +119,7 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
                   stroke="#10213b"
                   strokeWidth="2.5"
                   paintOrder="stroke"
-                  fontSize="12"
+                  fontSize="15"
                   fontWeight="700"
                   pointerEvents="none"
                   aria-hidden="true"
@@ -133,14 +133,14 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
 
         <div className="flex min-w-0 flex-col gap-3">
           <div className="rounded-xl border border-border/70 bg-background/30 p-4">
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-3 text-base font-semibold uppercase tracking-wide text-muted-foreground">
               Top 5 estados
             </h3>
             {maioresEstados.length > 0 ? (
               <ol className="space-y-4">
                 {maioresEstados.map((estado) => (
                   <li key={estado.uf} className="grid grid-cols-[2rem_minmax(0,1fr)_5rem] gap-3">
-                    <span className="text-xs font-semibold text-foreground">{estado.uf}</span>
+                    <span className="text-base font-semibold text-foreground">{estado.uf}</span>
                     <span className="h-4 overflow-hidden rounded bg-muted/60">
                       <span
                         className="block h-full rounded bg-primary"
@@ -149,7 +149,7 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
                         }}
                       />
                     </span>
-                    <span className="text-right text-xs tabular-nums text-foreground">
+                    <span className="text-right text-base tabular-nums text-foreground">
                       {formatarQuantidade.format(estado.quantidade)}
                       <span className="block font-normal text-muted-foreground">
                         {formatadorValorCompacto.format(estado.valor)}
@@ -164,10 +164,10 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
           </div>
 
           <div className="rounded-xl border border-border/70 bg-background/30 p-3">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-2 text-base font-semibold uppercase tracking-wide text-muted-foreground">
               Pedidos por estado
             </h3>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-base text-muted-foreground">
               {[
                 { label: "100+", color: CORES_MAPA[4] },
                 { label: "50–99", color: CORES_MAPA[3] },
@@ -188,7 +188,7 @@ export function DistribuicaoEstados({ estados }: { estados: EstadoDestinatario[]
           </div>
         </div>
       </div>
-      <p className="mt-1 text-[10px] text-muted-foreground">
+      <p className="mt-1 text-xs text-muted-foreground">
         Mapa:{" "}
         <a
           href="https://github.com/VictorCazanave/svg-maps/tree/master/packages/brazil"

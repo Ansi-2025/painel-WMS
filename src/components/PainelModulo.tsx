@@ -31,7 +31,7 @@ import {
   type ConsultaEship,
 } from "@/lib/wms-config";
 
-const INTERVALO_SEGUNDOS = 60;
+const INTERVALO_SEGUNDOS = 120;
 const CONFIGURACAO_GRAFICO_VALORES: ChartConfig = {
   valor: { label: "Valor", color: "var(--chart-1)" },
 };
@@ -104,7 +104,6 @@ type ConsultaFn = (options: { data: ConsultaEship }) => Promise<{
   ordens: OrdemWMS[];
   statusPedidos?: StatusPedido[];
   fretesPorStatus?: FretePorStatus[];
-  estadosDestinatario?: EstadoDestinatario[];
 }>;
 
 export function PainelModulo({
@@ -124,7 +123,6 @@ export function PainelModulo({
   const [statusPedidos, setStatusPedidos] = useState<StatusPedido[]>([]);
   const [statusSelecionado, setStatusSelecionado] = useState<string | null>(null);
   const [fretesPorStatus, setFretesPorStatus] = useState<FretePorStatus[]>([]);
-  const [estadosDestinatario, setEstadosDestinatario] = useState<EstadoDestinatario[]>([]);
   const [buscaFila, setBuscaFila] = useState("");
   const [apiAtiva, setApiAtiva] = useState(true);
   const [preferenciaApiCarregada, setPreferenciaApiCarregada] = useState(false);
@@ -175,7 +173,7 @@ export function PainelModulo({
         ...consulta,
         parametros: {
           ...consulta.parametros,
-          ["statusOrdem"]: `[${statusSelecionado ?? CARTOES_STATUS.map(({ id }) => id).join(",")}]`,
+          ["statusOrdem"]: `[${CARTOES_STATUS.map(({ id }) => id).join(",")}]`,
         },
       };
       const dados = await consultarAPI({ data: consultaComStatus });
@@ -183,7 +181,6 @@ export function PainelModulo({
       setOrdens(dados.ordens);
       setStatusPedidos(dados.statusPedidos ?? []);
       setFretesPorStatus(dados.fretesPorStatus ?? []);
-      setEstadosDestinatario(dados.estadosDestinatario ?? []);
       setConectado(true);
       setAtualizadoEm(formatarHora(new Date()));
     } catch {
@@ -194,7 +191,7 @@ export function PainelModulo({
         setConsultando(false);
       }
     }
-  }, [apiAtiva, consulta, consultarAPI, preferenciaApiCarregada, statusSelecionado]);
+  }, [apiAtiva, consulta, consultarAPI, preferenciaApiCarregada]);
 
   useEffect(() => {
     if (!preferenciaApiCarregada) return;
@@ -217,7 +214,37 @@ export function PainelModulo({
     return () => window.clearInterval(id);
   }, [apiAtiva, atualizarDashboard, preferenciaApiCarregada]);
 
-  const filas = agruparOrdensPorFila(ordens);
+  const ordensVisiveis = statusSelecionado
+    ? ordens.filter((ordem) => ordem.statusId === statusSelecionado)
+    : ordens;
+  const statusPedidosVisiveis = statusSelecionado
+    ? statusPedidos.filter((status) => status.id === statusSelecionado)
+    : statusPedidos;
+  const fretesPorStatusVisiveis = statusSelecionado
+    ? fretesPorStatus.filter((frete) => frete.id === statusSelecionado)
+    : fretesPorStatus;
+  const estadosDestinatarioVisiveis = (() => {
+    const estados = new Map<string, EstadoDestinatario>();
+    for (const ordem of ordensVisiveis) {
+      const estado = ordem.estadoDestinatario;
+      if (!estado) continue;
+      const agregado = estados.get(estado.uf);
+      if (agregado) {
+        agregado.quantidade += 1;
+        agregado.valor += paraNumero(ordem.infosAdicionais?.valordaordem);
+      } else {
+        estados.set(estado.uf, {
+          ...estado,
+          quantidade: 1,
+          valor: paraNumero(ordem.infosAdicionais?.valordaordem),
+        });
+      }
+    }
+    return [...estados.values()].sort(
+      (a, b) => b.quantidade - a.quantidade || a.nome.localeCompare(b.nome, "pt-BR"),
+    );
+  })();
+  const filas = agruparOrdensPorFila(ordensVisiveis);
   const filasFiltradas = filas.filter((fila) =>
     fila.nome.toLocaleLowerCase("pt-BR").includes(buscaFila.trim().toLocaleLowerCase("pt-BR")),
   );
@@ -230,7 +257,7 @@ export function PainelModulo({
             <h1 className="text-2xl font-bold tracking-[0.12em] text-foreground lg:text-4xl">
               {titulo}
             </h1>
-            <p className="mt-1 text-xs uppercase tracking-[0.2em] text-muted-foreground lg:text-sm">
+            <p className="mt-1 text-sm uppercase tracking-[0.2em] text-muted-foreground lg:text-base">
               {subtitulo}
             </p>
           </div>
@@ -278,13 +305,13 @@ export function PainelModulo({
                 <Package aria-hidden="true" className="size-6 lg:size-7" />
               </span>
               <div className="min-w-0">
-                <p className="text-xs font-semibold tracking-[0.12em] text-muted-foreground">
+                <p className="text-base font-semibold tracking-[0.12em] text-muted-foreground">
                   VALOR DAS ORDENS
                 </p>
                 <p className="mt-1 break-words text-2xl font-bold tabular-nums text-foreground lg:text-3xl">
-                  {formatarMoeda(valorTotal(ordens))}
+                  {formatarMoeda(valorTotal(ordensVisiveis))}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">Total das ordens consultadas</p>
+                <p className="mt-1 text-base text-muted-foreground">Total das ordens consultadas</p>
               </div>
             </div>
             <div className="panel flex min-w-0 items-center gap-4 p-4 lg:p-5">
@@ -292,13 +319,13 @@ export function PainelModulo({
                 <ClipboardList aria-hidden="true" className="size-6 lg:size-7" />
               </span>
               <div className="min-w-0">
-                <p className="text-xs font-semibold tracking-[0.12em] text-muted-foreground">
+                <p className="text-base font-semibold tracking-[0.12em] text-muted-foreground">
                   TOTAL DE PEDIDOS
                 </p>
                 <p className="mt-1 text-3xl font-bold tabular-nums text-foreground lg:text-4xl">
-                  {formatarInteiro(totalOrdens(ordens))}
+                  {formatarInteiro(totalOrdens(ordensVisiveis))}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">Pedidos retornados pela API</p>
+                <p className="mt-1 text-base text-muted-foreground">Pedidos retornados pela API</p>
               </div>
             </div>
           </section>
@@ -333,7 +360,7 @@ export function PainelModulo({
                       : `${cartao.estilo} ${selecionado ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`
                   }`}
                 >
-                  <span className="text-xs font-semibold leading-tight sm:text-sm">
+                  <span className="text-base font-semibold leading-tight lg:text-lg">
                     {cartao.nome}
                   </span>
                   <span className="text-xl font-bold tabular-nums leading-none sm:text-2xl">
@@ -348,14 +375,14 @@ export function PainelModulo({
         {exibirGraficos && (
           <section className="grid gap-3 xl:grid-cols-12" aria-label="Indicadores do dashboard">
             <div className="panel order-3 min-w-0 p-4 lg:p-5 xl:col-span-6 2xl:col-span-6">
-              <h2 className="mb-3 text-base font-semibold text-foreground">Pedidos por status</h2>
-              {statusPedidos.length > 0 ? (
+              <h2 className="mb-3 text-xl font-semibold text-foreground">Pedidos por status</h2>
+              {statusPedidosVisiveis.length > 0 ? (
                 <ChartContainer
                   config={CONFIGURACAO_GRAFICO_PEDIDOS}
                   className="h-[300px] aspect-auto"
                 >
                   <BarChart
-                    data={statusPedidos}
+                    data={statusPedidosVisiveis}
                     margin={{ top: 38, right: 8, left: 0, bottom: 74 }}
                   >
                     <CartesianGrid vertical={false} strokeDasharray="3 3" />
@@ -368,7 +395,7 @@ export function PainelModulo({
                       height={94}
                       tickLine={false}
                       axisLine={false}
-                      tick={{ fontSize: 10 }}
+                      tick={{ fontSize: 15 }}
                     />
                     <YAxis
                       allowDecimals={false}
@@ -377,6 +404,7 @@ export function PainelModulo({
                       }
                       tickLine={false}
                       axisLine={false}
+                      tick={{ fontSize: 14 }}
                     />
                     <ChartTooltip
                       cursor={false}
@@ -396,7 +424,7 @@ export function PainelModulo({
                         position="insideTop"
                         formatter={(quantidade: number) => formatarInteiro(quantidade)}
                         fill="white"
-                        fontSize={12}
+                        fontSize={14}
                         fontWeight={600}
                       />
                       <LabelList
@@ -404,7 +432,7 @@ export function PainelModulo({
                         position="top"
                         formatter={(valor: number) => formatarValorCompacto(valor)}
                         fill="var(--foreground)"
-                        fontSize={11}
+                        fontSize={13}
                         fontWeight={600}
                       />
                     </Bar>
@@ -417,19 +445,19 @@ export function PainelModulo({
               )}
             </div>
 
-            <DistribuicaoEstados estados={estadosDestinatario} />
+            <DistribuicaoEstados estados={estadosDestinatarioVisiveis} />
 
             <div className="panel order-4 min-w-0 p-4 lg:p-5 xl:col-span-6 2xl:col-span-6">
-              <h2 className="mb-3 text-base font-semibold text-foreground">
+              <h2 className="mb-3 text-xl font-semibold text-foreground">
                 Valor do frete por status
               </h2>
-              {fretesPorStatus.length > 0 ? (
+              {fretesPorStatusVisiveis.length > 0 ? (
                 <ChartContainer
                   config={CONFIGURACAO_GRAFICO_VALORES}
                   className="h-[300px] aspect-auto"
                 >
                   <BarChart
-                    data={fretesPorStatus}
+                    data={fretesPorStatusVisiveis}
                     margin={{ top: 24, right: 8, left: 4, bottom: 48 }}
                   >
                     <CartesianGrid vertical={false} strokeDasharray="3 3" />
@@ -442,7 +470,7 @@ export function PainelModulo({
                       height={56}
                       tickLine={false}
                       axisLine={false}
-                      tick={{ fontSize: 10 }}
+                      tick={{ fontSize: 15 }}
                     />
                     <YAxis
                       tickFormatter={(valor: number) =>
@@ -450,6 +478,7 @@ export function PainelModulo({
                       }
                       tickLine={false}
                       axisLine={false}
+                      tick={{ fontSize: 14 }}
                     />
                     <ChartTooltip
                       cursor={false}
@@ -463,7 +492,7 @@ export function PainelModulo({
                         position="top"
                         formatter={(valor: number) => formatarValorCompacto(valor)}
                         fill="var(--foreground)"
-                        fontSize={11}
+                        fontSize={13}
                         fontWeight={600}
                       />
                     </Bar>
@@ -476,7 +505,7 @@ export function PainelModulo({
               )}
             </div>
 
-            <div className="panel order-1 min-w-0 p-4 lg:p-5 xl:col-span-6 2xl:col-span-5">
+            <div className="panel order-1 min-w-0 p-4 lg:p-5 xl:col-span-6 xl:mt-6 2xl:col-span-5">
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="flex items-center gap-3">
@@ -484,8 +513,8 @@ export function PainelModulo({
                       <ClipboardList aria-hidden="true" className="size-5" />
                     </span>
                     <div>
-                      <h2 className="text-base font-semibold text-foreground">Fila por família</h2>
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <h2 className="text-xl font-semibold text-foreground">Fila por família</h2>
+                      <p className="mt-1 text-base text-muted-foreground">
                         {filasFiltradas.length} de {filas.length} famílias · pedidos e valor total
                       </p>
                     </div>
@@ -501,18 +530,18 @@ export function PainelModulo({
                     placeholder="Pesquisar fila..."
                     value={buscaFila}
                     onChange={(event) => setBuscaFila(event.target.value)}
-                    className="h-10 rounded-xl border-border bg-background/60 pl-9"
+                    className="h-12 rounded-xl border-border bg-background/60 pl-10 text-lg"
                   />
                 </label>
               </div>
               <div className="max-h-[420px] overflow-auto rounded-xl border border-border/70">
-                <table className="w-full min-w-[600px] text-left text-sm">
-                  <thead className="sticky top-0 bg-card text-xs font-semibold text-muted-foreground">
+                <table className="w-full min-w-[600px] text-left text-lg">
+                  <thead className="sticky top-0 bg-card text-base font-semibold text-muted-foreground">
                     <tr>
-                      <th className="px-4 py-3">Família da fila</th>
-                      <th className="px-4 py-3 text-right">Pedidos</th>
-                      <th className="px-4 py-3 text-right">% do total</th>
-                      <th className="px-4 py-3 text-right">Valor total (R$)</th>
+                      <th className="px-4 py-5">Família da fila</th>
+                      <th className="px-4 py-5 text-right">Pedidos</th>
+                      <th className="px-4 py-5 text-right">% do total</th>
+                      <th className="px-4 py-5 text-right">Valor total (R$)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -521,24 +550,24 @@ export function PainelModulo({
                         key={fila.nome}
                         className="border-t border-border/60 transition-colors hover:bg-primary/10"
                       >
-                        <td className="px-4 py-2.5 font-medium text-foreground">
+                        <td className="px-4 py-4 font-semibold text-foreground">
                           <span className="inline-flex items-center gap-2">
                             <span
                               aria-hidden="true"
-                              className={`size-2.5 rounded-full ${corIndicadorFila(fila.nome)}`}
+                              className={`size-3 rounded-full ${corIndicadorFila(fila.nome)}`}
                             />
                             {fila.nome}
                           </span>
                         </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums">
+                        <td className="px-4 py-4 text-right tabular-nums">
                           {formatarInteiro(fila.quantidade)}
                         </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums">
-                          {totalOrdens(ordens) > 0
-                            ? `${formatarInteiro((fila.quantidade / totalOrdens(ordens)) * 100)}%`
+                        <td className="px-4 py-4 text-right tabular-nums">
+                          {totalOrdens(ordensVisiveis) > 0
+                            ? `${formatarInteiro((fila.quantidade / totalOrdens(ordensVisiveis)) * 100)}%`
                             : "0%"}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-medium tabular-nums text-foreground">
+                        <td className="px-4 py-4 text-right font-semibold tabular-nums text-foreground">
                           {formatarMoeda(fila.valorTotal)}
                         </td>
                       </tr>
@@ -557,7 +586,7 @@ export function PainelModulo({
           </section>
         )}
 
-        <footer className="panel px-5 py-3 text-center text-sm tracking-[0.14em] text-muted-foreground">
+        <footer className="panel px-5 py-3 text-center text-base tracking-[0.14em] text-muted-foreground">
           {apiAtiva ? (
             <>
               Próxima atualização em{" "}

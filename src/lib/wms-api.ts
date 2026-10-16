@@ -19,6 +19,11 @@ export interface InfosAdicionais {
 export interface OrdemWMS {
   ordem: number;
   codigo: string;
+  statusId?: string;
+  estadoDestinatario?: {
+    uf: string;
+    nome: string;
+  };
   infosAdicionais?: InfosAdicionais | undefined;
 }
 
