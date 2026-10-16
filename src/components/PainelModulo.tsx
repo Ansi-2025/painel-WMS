@@ -252,16 +252,16 @@ export function PainelModulo({
     <div className="min-h-screen bg-background text-foreground">
       <BarraModulos />
       <div className="mx-auto flex min-h-screen w-full max-w-none flex-col gap-4 p-4 pl-20 lg:gap-6 lg:p-6 lg:pl-22">
-        <header className="panel flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <header className="panel flex flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-[0.12em] text-foreground lg:text-4xl">
+            <h1 className="text-xl font-bold tracking-[0.12em] text-foreground lg:text-3xl">
               {titulo}
             </h1>
-            <p className="mt-1 text-sm uppercase tracking-[0.2em] text-muted-foreground lg:text-base">
+            <p className="mt-0.5 text-xs uppercase tracking-[0.2em] text-muted-foreground lg:text-sm">
               {subtitulo}
             </p>
           </div>
-          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
             <div className="flex min-w-0 flex-col gap-1 sm:items-end">
               <span
                 className={
@@ -283,11 +283,11 @@ export function PainelModulo({
                       ? "CONECTADO"
                       : "OFFLINE"}
               </span>
-              <span className="text-xs tracking-[0.12em] text-muted-foreground lg:text-sm">
+              <span className="text-[11px] tracking-[0.12em] text-muted-foreground lg:text-xs">
                 Última atualização: <span className="text-foreground">{atualizadoEm}</span>
               </span>
               {apiAtiva && !conectado && !consultando && (
-                <span className="text-xs font-semibold tracking-[0.12em] text-destructive">
+                <span className="text-[11px] font-semibold tracking-[0.12em] text-destructive">
                   Falha na comunicação com a API E-SHIP
                 </span>
               )}
@@ -300,32 +300,32 @@ export function PainelModulo({
             className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2"
             aria-label="Resumo do dashboard"
           >
-            <div className="panel flex min-w-0 items-center gap-4 p-4 lg:p-5">
-              <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-primary/15 text-primary lg:size-14">
-                <Package aria-hidden="true" className="size-6 lg:size-7" />
+            <div className="panel flex min-w-0 items-center gap-3 p-3 lg:p-3.5">
+              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/15 text-primary lg:size-11">
+                <Package aria-hidden="true" className="size-5 lg:size-6" />
               </span>
               <div className="min-w-0">
-                <p className="text-base font-semibold tracking-[0.12em] text-muted-foreground">
+                <p className="text-sm font-semibold tracking-[0.12em] text-muted-foreground">
                   VALOR DAS ORDENS
                 </p>
-                <p className="mt-1 break-words text-2xl font-bold tabular-nums text-foreground lg:text-3xl">
+                <p className="mt-0.5 break-words text-xl font-bold tabular-nums text-foreground lg:text-2xl">
                   {formatarMoeda(valorTotal(ordensVisiveis))}
                 </p>
-                <p className="mt-1 text-base text-muted-foreground">Total das ordens consultadas</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Total das ordens consultadas</p>
               </div>
             </div>
-            <div className="panel flex min-w-0 items-center gap-4 p-4 lg:p-5">
-              <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-primary/15 text-primary lg:size-14">
-                <ClipboardList aria-hidden="true" className="size-6 lg:size-7" />
+            <div className="panel flex min-w-0 items-center gap-3 p-3 lg:p-3.5">
+              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/15 text-primary lg:size-11">
+                <ClipboardList aria-hidden="true" className="size-5 lg:size-6" />
               </span>
               <div className="min-w-0">
-                <p className="text-base font-semibold tracking-[0.12em] text-muted-foreground">
+                <p className="text-sm font-semibold tracking-[0.12em] text-muted-foreground">
                   TOTAL DE PEDIDOS
                 </p>
-                <p className="mt-1 text-3xl font-bold tabular-nums text-foreground lg:text-4xl">
+                <p className="mt-0.5 text-2xl font-bold tabular-nums text-foreground lg:text-3xl">
                   {formatarInteiro(totalOrdens(ordensVisiveis))}
                 </p>
-                <p className="mt-1 text-base text-muted-foreground">Pedidos retornados pela API</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Pedidos retornados pela API</p>
               </div>
             </div>
           </section>
@@ -505,16 +505,16 @@ export function PainelModulo({
               )}
             </div>
 
-            <div className="panel order-1 min-w-0 p-4 lg:p-5 xl:col-span-6 xl:mt-6 2xl:col-span-5">
-              <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="panel order-1 min-w-0 p-3 lg:p-4 xl:col-span-6 xl:mt-6 2xl:col-span-5">
+              <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="flex items-center gap-3">
-                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
-                      <ClipboardList aria-hidden="true" className="size-5" />
+                    <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
+                      <ClipboardList aria-hidden="true" className="size-4" />
                     </span>
                     <div>
-                      <h2 className="text-xl font-semibold text-foreground">Fila por família</h2>
-                      <p className="mt-1 text-base text-muted-foreground">
+                      <h2 className="text-lg font-semibold text-foreground">Fila por família</h2>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
                         {filasFiltradas.length} de {filas.length} famílias · pedidos e valor total
                       </p>
                     </div>
@@ -530,18 +530,18 @@ export function PainelModulo({
                     placeholder="Pesquisar fila..."
                     value={buscaFila}
                     onChange={(event) => setBuscaFila(event.target.value)}
-                    className="h-12 rounded-xl border-border bg-background/60 pl-10 text-lg"
+                    className="h-9 rounded-xl border-border bg-background/60 pl-9 text-sm"
                   />
                 </label>
               </div>
-              <div className="max-h-[420px] overflow-auto rounded-xl border border-border/70">
-                <table className="w-full min-w-[600px] text-left text-lg">
-                  <thead className="sticky top-0 bg-card text-base font-semibold text-muted-foreground">
+              <div className="rounded-xl border border-border/70">
+                <table className="w-full min-w-[500px] text-left text-sm">
+                  <thead className="bg-card text-xs font-semibold text-muted-foreground lg:text-sm">
                     <tr>
-                      <th className="px-4 py-5">Família da fila</th>
-                      <th className="px-4 py-5 text-right">Pedidos</th>
-                      <th className="px-4 py-5 text-right">% do total</th>
-                      <th className="px-4 py-5 text-right">Valor total (R$)</th>
+                      <th className="px-3 py-2.5">Família da fila</th>
+                      <th className="px-3 py-2.5 text-right">Pedidos</th>
+                      <th className="px-3 py-2.5 text-right">% do total</th>
+                      <th className="px-3 py-2.5 text-right">Valor total (R$)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -550,24 +550,24 @@ export function PainelModulo({
                         key={fila.nome}
                         className="border-t border-border/60 transition-colors hover:bg-primary/10"
                       >
-                        <td className="px-4 py-4 font-semibold text-foreground">
+                        <td className="px-3 py-1.5 font-semibold text-foreground">
                           <span className="inline-flex items-center gap-2">
                             <span
                               aria-hidden="true"
-                              className={`size-3 rounded-full ${corIndicadorFila(fila.nome)}`}
+                              className={`size-2.5 rounded-full ${corIndicadorFila(fila.nome)}`}
                             />
                             {fila.nome}
                           </span>
                         </td>
-                        <td className="px-4 py-4 text-right tabular-nums">
+                        <td className="px-3 py-1.5 text-right tabular-nums">
                           {formatarInteiro(fila.quantidade)}
                         </td>
-                        <td className="px-4 py-4 text-right tabular-nums">
+                        <td className="px-3 py-1.5 text-right tabular-nums">
                           {totalOrdens(ordensVisiveis) > 0
                             ? `${formatarInteiro((fila.quantidade / totalOrdens(ordensVisiveis)) * 100)}%`
                             : "0%"}
                         </td>
-                        <td className="px-4 py-4 text-right font-semibold tabular-nums text-foreground">
+                        <td className="px-3 py-1.5 text-right font-semibold tabular-nums text-foreground">
                           {formatarMoeda(fila.valorTotal)}
                         </td>
                       </tr>
