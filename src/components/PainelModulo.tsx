@@ -310,18 +310,24 @@ export function PainelModulo({
     if (!exibirGraficos) return;
 
     let indiceStatus = 0;
-    let intervalo: number | undefined;
-    const inicio = window.setTimeout(() => {
+    let timeout: number;
+    const avancarStatus = () => {
+      if (indiceStatus === CARTOES_STATUS.length) {
+        setStatusSelecionado(null);
+        indiceStatus = 0;
+        timeout = window.setTimeout(avancarStatus, ATRASO_INICIO_CICLO_STATUS_MS);
+        return;
+      }
+
       setStatusSelecionado(CARTOES_STATUS[indiceStatus]!.id);
-      intervalo = window.setInterval(() => {
-        indiceStatus = (indiceStatus + 1) % CARTOES_STATUS.length;
-        setStatusSelecionado(CARTOES_STATUS[indiceStatus]!.id);
-      }, DURACAO_STATUS_MS);
-    }, ATRASO_INICIO_CICLO_STATUS_MS);
+      indiceStatus += 1;
+      timeout = window.setTimeout(avancarStatus, DURACAO_STATUS_MS);
+    };
+
+    timeout = window.setTimeout(avancarStatus, ATRASO_INICIO_CICLO_STATUS_MS);
 
     return () => {
-      window.clearTimeout(inicio);
-      if (intervalo !== undefined) window.clearInterval(intervalo);
+      window.clearTimeout(timeout);
     };
   }, [exibirGraficos]);
 
