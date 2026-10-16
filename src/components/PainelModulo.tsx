@@ -1,7 +1,17 @@
 import { useServerFn } from "@tanstack/react-start";
 import { CircleX, ClipboardList, Package, Search } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  LabelList,
+  Pie,
+  PieChart,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { BarraModulos } from "@/components/BarraModulos";
 import { DistribuicaoEstados, type EstadoDestinatario } from "@/components/DistribuicaoEstados";
 import { Input } from "@/components/ui/input";
@@ -44,6 +54,15 @@ const CONFIGURACAO_GRAFICO_IDADE: ChartConfig = {
 const CONFIGURACAO_GRAFICO_PEDIDOS: ChartConfig = {
   quantidade: { label: "Pedidos", color: "var(--chart-1)" },
   valor: { label: "Valor total", color: "var(--chart-2)" },
+};
+const CORES_GRAFICO_STATUS: Record<string, string> = {
+  "1": "#94a3b8",
+  "2": "#2563eb",
+  "3": "#f97316",
+  "4": "#16a34a",
+  "5": "#6b7280",
+  "6": "#38bdf8",
+  "7": "#cbd5e1",
 };
 const FAIXAS_IDADE_ORDENS = [
   { id: "hoje", nome: "Hoje (até 24h)", rotulo: "Hoje" },
@@ -507,70 +526,84 @@ export function PainelModulo({
 
         {exibirGraficos && (
           <section className="grid gap-3 xl:grid-cols-12" aria-label="Indicadores do dashboard">
-            <div className="panel order-3 min-w-0 p-3 lg:p-4 xl:order-2 xl:col-span-4">
+            <div className="panel order-3 min-w-0 overflow-hidden p-3 lg:p-4 xl:order-2 xl:col-span-4">
               <h2 className="mb-2 text-lg font-semibold text-foreground">Pedidos por status</h2>
               {statusPedidosVisiveis.length > 0 ? (
-                <ChartContainer
-                  config={CONFIGURACAO_GRAFICO_PEDIDOS}
-                  className="h-[180px] aspect-auto sm:h-[200px]"
-                >
-                  <BarChart
-                    data={statusPedidosVisiveis}
-                    margin={{ top: 32, right: 4, left: 0, bottom: 64 }}
-                  >
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="nome"
-                      tickFormatter={nomeStatusResumido}
-                      angle={-28}
-                      textAnchor="end"
-                      interval={0}
-                      height={94}
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <YAxis
-                      allowDecimals={false}
-                      tickFormatter={(valor: number) =>
-                        new Intl.NumberFormat("pt-BR", { notation: "compact" }).format(valor)
-                      }
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <ChartTooltip
-                      cursor={false}
-                      content={
-                        <ChartTooltipContent
-                          formatter={(valor, nome) =>
-                            nome === "valor"
-                              ? formatarMoeda(Number(valor))
-                              : formatarInteiro(Number(valor))
+                <div className="grid h-[220px] min-h-0 grid-cols-[minmax(112px,0.85fr)_minmax(0,1.15fr)] items-center gap-1 overflow-hidden sm:h-[250px] sm:gap-2">
+                  <div className="relative h-full min-h-0 min-w-0 overflow-hidden">
+                    <ChartContainer
+                      config={CONFIGURACAO_GRAFICO_PEDIDOS}
+                      className="h-full w-full aspect-auto"
+                    >
+                      <PieChart>
+                        <ChartTooltip
+                          content={
+                            <ChartTooltipContent
+                              labelFormatter={(_, payload) => payload[0]?.payload.nome}
+                              formatter={(valor) => `${formatarInteiro(Number(valor))} pedidos`}
+                            />
                           }
                         />
-                      }
-                    />
-                    <Bar dataKey="quantidade" fill="var(--color-quantidade)" radius={[7, 7, 0, 0]}>
-                      <LabelList
-                        dataKey="quantidade"
-                        position="insideTop"
-                        formatter={(quantidade: number) => formatarInteiro(quantidade)}
-                        fill="white"
-                        fontSize={12}
-                        fontWeight={600}
-                      />
-                      <LabelList
-                        dataKey="valor"
-                        position="top"
-                        formatter={(valor: number) => formatarValorCompacto(valor)}
-                        fill="var(--foreground)"
-                        fontSize={11}
-                        fontWeight={600}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ChartContainer>
+                        <Pie
+                          data={statusPedidosVisiveis}
+                          dataKey="quantidade"
+                          nameKey="nome"
+                          innerRadius="58%"
+                          outerRadius="88%"
+                          paddingAngle={2}
+                          stroke="var(--background)"
+                          strokeWidth={3}
+                        >
+                          {statusPedidosVisiveis.map((status) => (
+                            <Cell
+                              key={status.id}
+                              fill={CORES_GRAFICO_STATUS[status.id] ?? "var(--chart-1)"}
+                            />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ChartContainer>
+                    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-2xl font-bold tabular-nums text-foreground sm:text-3xl">
+                        {formatarInteiro(
+                          statusPedidosVisiveis.reduce(
+                            (total, status) => total + status.quantidade,
+                            0,
+                          ),
+                        )}
+                      </span>
+                      <span className="text-xs text-muted-foreground">pedidos</span>
+                    </div>
+                  </div>
+                  <ul className="flex min-h-0 min-w-0 flex-col justify-center gap-0 overflow-hidden">
+                    {statusPedidosVisiveis.map((status) => (
+                      <li
+                        key={status.id}
+                        className="grid min-h-0 min-w-0 grid-cols-[8px_minmax(0,1fr)_auto] grid-rows-[16px_12px] items-center gap-x-1.5 sm:grid-cols-[10px_minmax(0,1fr)_auto] sm:gap-x-2"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="size-2 rounded-full sm:size-2.5"
+                          style={{
+                            backgroundColor: CORES_GRAFICO_STATUS[status.id] ?? "var(--chart-1)",
+                          }}
+                        />
+                        <span
+                          className="truncate text-[11px] font-medium leading-4 text-muted-foreground sm:text-xs"
+                          title={status.nome}
+                        >
+                          {nomeStatusResumido(status.nome)}
+                        </span>
+                        <span className="text-base font-bold leading-5 tabular-nums text-foreground sm:text-lg">
+                          {formatarInteiro(status.quantidade)}
+                        </span>
+                        <span className="col-start-2 col-end-4 truncate text-[10px] leading-3 text-muted-foreground">
+                          {formatarValorCompacto(status.valor)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ) : (
                 <p className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
                   Nenhum status de pedido encontrado na API.
