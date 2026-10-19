@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PainelModulo } from "@/components/PainelModulo";
-import { consultarDashboardWms, consultarIntegracaoDiaWms } from "@/lib/wms.functions";
+import {
+  consultarDashboardWms,
+  consultarEvolucaoOrdensWms,
+  consultarIntegracaoDiaWms,
+} from "@/lib/wms.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -15,7 +19,7 @@ export const Route = createFileRoute("/")({
       {
         property: "og:description",
         content:
-          "Acompanhamento em tempo real de ordens, valores por fila e fretes por status da operação logística.",
+          "Acompanhamento em tempo real de ordens, valores por fila e reabastecimento por setor.",
       },
     ],
   }),
@@ -28,6 +32,7 @@ function Painel() {
       titulo="DASHBOARD WMS"
       subtitulo="Acompanhamento em tempo real da operação"
       consultar={consultarDashboardWms}
+      consultarEvolucao={consultarEvolucaoOrdensWms}
       consultarIntegracao={consultarIntegracaoDiaWms}
       exibirGraficos
     />

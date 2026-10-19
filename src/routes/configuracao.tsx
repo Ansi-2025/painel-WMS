@@ -1,9 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Pause, Play } from "lucide-react";
 import { useEffect, useState } from "react";
 import { BarraModulos } from "@/components/BarraModulos";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { assinarApiAtiva, lerApiAtiva, salvarApiAtiva } from "@/lib/wms-config";
+import {
+  assinarApiAtiva,
+  assinarCicloStatus,
+  lerApiAtiva,
+  lerCicloStatusAtivo,
+  salvarApiAtiva,
+  salvarCicloStatusAtivo,
+} from "@/lib/wms-config";
 
 export const Route = createFileRoute("/configuracao")({
   head: () => ({
@@ -20,15 +29,26 @@ export const Route = createFileRoute("/configuracao")({
 
 function Configuracao() {
   const [apiAtiva, setApiAtiva] = useState(true);
+  const [cicloStatusAtivo, setCicloStatusAtivo] = useState(true);
 
   useEffect(() => {
     setApiAtiva(lerApiAtiva());
     return assinarApiAtiva(() => setApiAtiva(lerApiAtiva()));
   }, []);
 
+  useEffect(() => {
+    setCicloStatusAtivo(lerCicloStatusAtivo());
+    return assinarCicloStatus(() => setCicloStatusAtivo(lerCicloStatusAtivo()));
+  }, []);
+
   function atualizarEstadoApi(ativa: boolean) {
     salvarApiAtiva(ativa);
     setApiAtiva(ativa);
+  }
+
+  function atualizarCicloStatus(ativo: boolean) {
+    salvarCicloStatusAtivo(ativo);
+    setCicloStatusAtivo(ativo);
   }
 
   return (
@@ -69,6 +89,43 @@ function Configuracao() {
               onCheckedChange={atualizarEstadoApi}
               aria-label={apiAtiva ? "Pausar consultas da API" : "Ativar consultas da API"}
             />
+          </div>
+        </section>
+
+        <section className="panel overflow-hidden">
+          <h2 className="border-b border-border px-5 py-3 text-sm font-semibold tracking-[0.2em] text-muted-foreground">
+            CICLO DE STATUS
+          </h2>
+          <div className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Mudança automática de status no dashboard
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground" aria-live="polite">
+                {cicloStatusAtivo
+                  ? "O ciclo está ativo e alterna os status automaticamente."
+                  : "O ciclo está parado. O status atual permanecerá selecionado."}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => atualizarCicloStatus(false)}
+                disabled={!cicloStatusAtivo}
+              >
+                <Pause aria-hidden="true" />
+                Parar Ciclo
+              </Button>
+              <Button
+                type="button"
+                onClick={() => atualizarCicloStatus(true)}
+                disabled={cicloStatusAtivo}
+              >
+                <Play aria-hidden="true" />
+                Iniciar Ciclo
+              </Button>
+            </div>
           </div>
         </section>
       </main>

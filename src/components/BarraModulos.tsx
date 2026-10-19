@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, LogOut, Settings2 } from "lucide-react";
+import { ClipboardList, LayoutDashboard, LogOut, Settings2, Warehouse } from "lucide-react";
 import { sairPainel } from "@/lib/auth.functions";
 import {
   assinarModulosPersonalizados,
@@ -12,6 +12,8 @@ import {
 
 export const MODULOS = [
   { nome: "Dashboard", icone: LayoutDashboard, to: "/" },
+  { nome: "Endereçamento", icone: Warehouse, to: "/enderecamento" },
+  { nome: "Inventário", icone: ClipboardList, to: "/inventario" },
   { nome: "Configuração", icone: Settings2, to: "/configuracao" },
 ] as const;
 

@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ConfiguracaoRouteImport } from './routes/configuracao'
+import { Route as EnderecamentoRouteImport } from './routes/enderecamento'
+import { Route as InventarioRouteImport } from './routes/inventario'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ModuloIdRouteImport } from './routes/modulo.$id'
 
@@ -22,6 +24,16 @@ const IndexRoute = IndexRouteImport.update({
 const ConfiguracaoRoute = ConfiguracaoRouteImport.update({
   id: '/configuracao',
   path: '/configuracao',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EnderecamentoRoute = EnderecamentoRouteImport.update({
+  id: '/enderecamento',
+  path: '/enderecamento',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InventarioRoute = InventarioRouteImport.update({
+  id: '/inventario',
+  path: '/inventario',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -38,12 +50,16 @@ const ModuloIdRoute = ModuloIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/configuracao': typeof ConfiguracaoRoute
+  '/enderecamento': typeof EnderecamentoRoute
+  '/inventario': typeof InventarioRoute
   '/login': typeof LoginRoute
   '/modulo/$id': typeof ModuloIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/configuracao': typeof ConfiguracaoRoute
+  '/enderecamento': typeof EnderecamentoRoute
+  '/inventario': typeof InventarioRoute
   '/login': typeof LoginRoute
   '/modulo/$id': typeof ModuloIdRoute
 }
@@ -51,20 +67,43 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/configuracao': typeof ConfiguracaoRoute
+  '/enderecamento': typeof EnderecamentoRoute
+  '/inventario': typeof InventarioRoute
   '/login': typeof LoginRoute
   '/modulo/$id': typeof ModuloIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/configuracao' | '/login' | '/modulo/$id'
+  fullPaths:
+    | '/'
+    | '/configuracao'
+    | '/enderecamento'
+    | '/inventario'
+    | '/login'
+    | '/modulo/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/configuracao' | '/login' | '/modulo/$id'
-  id: '__root__' | '/' | '/configuracao' | '/login' | '/modulo/$id'
+  to:
+    | '/'
+    | '/configuracao'
+    | '/enderecamento'
+    | '/inventario'
+    | '/login'
+    | '/modulo/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/configuracao'
+    | '/enderecamento'
+    | '/inventario'
+    | '/login'
+    | '/modulo/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ConfiguracaoRoute: typeof ConfiguracaoRoute
+  EnderecamentoRoute: typeof EnderecamentoRoute
+  InventarioRoute: typeof InventarioRoute
   LoginRoute: typeof LoginRoute
   ModuloIdRoute: typeof ModuloIdRoute
 }
@@ -83,6 +122,20 @@ declare module '@tanstack/react-router' {
       path: '/configuracao'
       fullPath: '/configuracao'
       preLoaderRoute: typeof ConfiguracaoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/enderecamento': {
+      id: '/enderecamento'
+      path: '/enderecamento'
+      fullPath: '/enderecamento'
+      preLoaderRoute: typeof EnderecamentoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inventario': {
+      id: '/inventario'
+      path: '/inventario'
+      fullPath: '/inventario'
+      preLoaderRoute: typeof InventarioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -105,6 +158,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConfiguracaoRoute: ConfiguracaoRoute,
+  EnderecamentoRoute: EnderecamentoRoute,
+  InventarioRoute: InventarioRoute,
   LoginRoute: LoginRoute,
   ModuloIdRoute: ModuloIdRoute,
 }

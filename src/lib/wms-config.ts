@@ -62,9 +62,36 @@ export const CONFIGURACAO_WMS_VAZIA: ConfiguracaoWms = {
 const CHAVE_STORAGE = "wms-painel:configuracao-api";
 const CHAVE_MODULOS = "wms-painel:modulos-personalizados";
 const CHAVE_API_ATIVA = "wms-painel:api-ativa";
+const CHAVE_CICLO_STATUS_ATIVO = "wms-painel:ciclo-status-ativo";
 const EVENTO_MODULOS = "wms-painel:modulos-personalizados-alterados";
 const EVENTO_CONFIGURACAO = "wms-painel:configuracao-alterada";
 const EVENTO_API_ATIVA = "wms-painel:api-ativa-alterada";
+const EVENTO_CICLO_STATUS = "wms-painel:ciclo-status-alterado";
+
+export function lerCicloStatusAtivo(): boolean {
+  if (typeof window === "undefined") return true;
+  return window.localStorage.getItem(CHAVE_CICLO_STATUS_ATIVO) !== "false";
+}
+
+export function salvarCicloStatusAtivo(ativo: boolean): void {
+  window.localStorage.setItem(CHAVE_CICLO_STATUS_ATIVO, String(ativo));
+  window.dispatchEvent(new Event(EVENTO_CICLO_STATUS));
+}
+
+export function assinarCicloStatus(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+
+  const atualizarEmOutraAba = (event: StorageEvent) => {
+    if (event.key === CHAVE_CICLO_STATUS_ATIVO) callback();
+  };
+
+  window.addEventListener(EVENTO_CICLO_STATUS, callback);
+  window.addEventListener("storage", atualizarEmOutraAba);
+  return () => {
+    window.removeEventListener(EVENTO_CICLO_STATUS, callback);
+    window.removeEventListener("storage", atualizarEmOutraAba);
+  };
+}
 
 export function lerApiAtiva(): boolean {
   if (typeof window === "undefined") return true;
