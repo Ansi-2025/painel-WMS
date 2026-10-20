@@ -5,6 +5,7 @@ import {
   CircleX,
   ClipboardCheck,
   ClipboardList,
+  ExternalLink,
   FileCheck2,
   FileClock,
   FilePlus2,
@@ -54,6 +55,7 @@ import {
   valorTotal,
   type OrdemWMS,
 } from "@/lib/wms-api";
+import { PRODUCT_IMAGE_LINKS } from "@/lib/product-image-links.generated";
 import {
   CONFIGURACAO_WMS_PADRAO,
   assinarApiAtiva,
@@ -197,7 +199,7 @@ const SECOES_DETALHES_DASHBOARD = [
       {
         titulo: "Estado do destinatário do cliente",
         descricao:
-          "Mapa e ranking dos cinco estados com mais pedidos. A intensidade do mapa representa o valor do frete; os detalhes mostram pedidos e valores.",
+          "O cartão soma o frete informado nas ordens e indica quantas ordens têm esse valor preenchido. No ranking por estado, o valor monetário é o valor dos pedidos, não o frete; o mapa representa o frete informado por estado.",
       },
     ],
   },
@@ -212,7 +214,7 @@ const SECOES_DETALHES_DASHBOARD = [
       {
         titulo: "Ranking de produtos com mais saídas",
         descricao:
-          "Ordena os produtos pela quantidade de saídas e informa em quantos pedidos aparecem. Os filtros Peça/Produto e a pesquisa refinam a lista.",
+          "Ordena os produtos pela quantidade de saídas e informa em quantos pedidos aparecem. Quando há link na planilha, toque no nome do produto para abrir sua imagem/documentação.",
       },
     ],
   },
@@ -712,17 +714,20 @@ export function PainelModulo({
     for (const ordem of ordensVisiveis) {
       const estado = ordem.estadoDestinatario;
       if (!estado) continue;
+      const possuiFreteInformado = Boolean(ordem.infosAdicionais?.valorfrete?.trim());
       const agregado = estados.get(estado.uf);
       if (agregado) {
         agregado.quantidade += 1;
         agregado.valor += paraNumero(ordem.infosAdicionais?.valordaordem);
         agregado.valorFrete += paraNumero(ordem.infosAdicionais?.valorfrete);
+        if (possuiFreteInformado) agregado.quantidadeComFrete += 1;
       } else {
         estados.set(estado.uf, {
           ...estado,
           quantidade: 1,
           valor: paraNumero(ordem.infosAdicionais?.valordaordem),
           valorFrete: paraNumero(ordem.infosAdicionais?.valorfrete),
+          quantidadeComFrete: possuiFreteInformado ? 1 : 0,
         });
       }
     }
@@ -1488,43 +1493,61 @@ export function PainelModulo({
               {produtosMaisSaidas.length > 0 ? (
                 <>
                   <div className="max-h-[420px] space-y-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:hidden xl:max-h-[40vh]">
-                    {produtosMaisSaidas.map((produto, indice) => (
-                      <article
-                        key={produto.id}
-                        className="rounded-lg border border-border/70 bg-background/30 p-3"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex min-w-0 gap-2">
-                            <span className="font-bold tabular-nums text-primary">
-                              {indice + 1}.
-                            </span>
-                            <div className="min-w-0">
-                              <h3 className="flex items-start gap-2 break-words text-sm font-semibold text-foreground">
-                                <span
-                                  aria-hidden="true"
-                                  className={`mt-1.5 size-2.5 shrink-0 rounded-full ${corIndicadorProduto(produto.categoria)}`}
-                                />
-                                <span title={produto.descricao}>
-                                  {descricaoProdutoResumida(produto.descricao)}
-                                </span>
-                              </h3>
-                              <p className="mt-0.5 text-xs text-muted-foreground">
-                                Código: {produto.codigo}
-                              </p>
+                    {produtosMaisSaidas.map((produto, indice) => {
+                      const linkImagem = PRODUCT_IMAGE_LINKS[produto.codigo] ?? null;
+                      const nomeProduto = descricaoProdutoResumida(produto.descricao);
+                      return (
+                        <article
+                          key={produto.id}
+                          className="rounded-lg border border-border/70 bg-background/30 p-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex min-w-0 gap-2">
+                              <span className="font-bold tabular-nums text-primary">
+                                {indice + 1}.
+                              </span>
+                              <div className="min-w-0">
+                                <h3 className="flex items-start gap-2 break-words text-sm font-semibold text-foreground">
+                                  <span
+                                    aria-hidden="true"
+                                    className={`mt-1.5 size-2.5 shrink-0 rounded-full ${corIndicadorProduto(produto.categoria)}`}
+                                  />
+                                  {linkImagem ? (
+                                    <a
+                                      href={linkImagem}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title={`Abrir imagem do produto ${produto.codigo}`}
+                                      className="inline-flex min-w-0 items-center gap-1 text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    >
+                                      <span className="truncate">{nomeProduto}</span>
+                                      <ExternalLink
+                                        aria-hidden="true"
+                                        className="size-3 shrink-0"
+                                      />
+                                    </a>
+                                  ) : (
+                                    <span title={produto.descricao}>{nomeProduto}</span>
+                                  )}
+                                </h3>
+                                <p className="mt-0.5 text-xs text-muted-foreground">
+                                  Código: {produto.codigo}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                          <span className="shrink-0 text-right text-lg font-bold tabular-nums text-foreground">
-                            {formatarInteiro(produto.quantidade)}
-                            <span className="block text-xs font-normal text-muted-foreground">
-                              saídas
+                            <span className="shrink-0 text-right text-lg font-bold tabular-nums text-foreground">
+                              {formatarInteiro(produto.quantidade)}
+                              <span className="block text-xs font-normal text-muted-foreground">
+                                saídas
+                              </span>
                             </span>
-                          </span>
-                        </div>
-                        <p className="mt-2 border-t border-border/60 pt-2 text-xs text-muted-foreground">
-                          Em {formatarInteiro(produto.pedidos)} pedidos
-                        </p>
-                      </article>
-                    ))}
+                          </div>
+                          <p className="mt-2 border-t border-border/60 pt-2 text-xs text-muted-foreground">
+                            Em {formatarInteiro(produto.pedidos)} pedidos
+                          </p>
+                        </article>
+                      );
+                    })}
                   </div>
                   <div className="hidden max-h-[420px] overflow-y-auto overflow-x-hidden rounded-xl border border-border/70 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:block xl:max-h-[40vh]">
                     <table className="w-full table-fixed text-left text-sm">
@@ -1558,9 +1581,24 @@ export function PainelModulo({
                                   aria-hidden="true"
                                   className={`size-2.5 shrink-0 rounded-full ${corIndicadorProduto(produto.categoria)}`}
                                 />
-                                <span className="truncate" title={produto.descricao}>
-                                  {descricaoProdutoResumida(produto.descricao)}
-                                </span>
+                                {PRODUCT_IMAGE_LINKS[produto.codigo] ? (
+                                  <a
+                                    href={PRODUCT_IMAGE_LINKS[produto.codigo]}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title={`Abrir imagem do produto ${produto.codigo}`}
+                                    className="inline-flex min-w-0 items-center gap-1 text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                  >
+                                    <span className="truncate">
+                                      {descricaoProdutoResumida(produto.descricao)}
+                                    </span>
+                                    <ExternalLink aria-hidden="true" className="size-3 shrink-0" />
+                                  </a>
+                                ) : (
+                                  <span className="truncate" title={produto.descricao}>
+                                    {descricaoProdutoResumida(produto.descricao)}
+                                  </span>
+                                )}
                               </span>
                             </td>
                             <td className="truncate px-1 py-1.5 text-right tabular-nums sm:px-2">
