@@ -39,6 +39,7 @@ Crie um arquivo `.env` na raiz do projeto e configure a chave da API e a senha d
 ```env
 API_KEY=sua_chave_da_api
 USER_CONTROLER=sua_senha_de_acesso
+MONITOR=sua_senha_de_monitoramento
 ```
 
 O arquivo `.env` é ignorado pelo Git. **Não inclua chaves ou outros segredos em commits.** A chave da API e a senha são lidas somente no servidor e não são armazenadas no navegador nem enviadas ao cliente.
@@ -57,10 +58,10 @@ No dashboard, acesse **Configuração** para informar a função da API E-SHIP e
 
 A chave da API deve permanecer no servidor:
 
-- **Desenvolvimento local:** variáveis `API_KEY` e `USER_CONTROLER` no arquivo `.env`.
-- **Vercel:** variáveis `API_KEY` e `USER_CONTROLER` em **Project Settings → Environment Variables**. Depois de salvar ou alterar as variáveis, faça uma nova implantação.
+- **Desenvolvimento local:** variáveis `API_KEY`, `USER_CONTROLER` e `MONITOR` no arquivo `.env`.
+- **Vercel:** variáveis `API_KEY`, `USER_CONTROLER` e `MONITOR` em **Project Settings → Environment Variables**. Depois de salvar ou alterar as variáveis, faça uma nova implantação.
 
-O servidor também aceita `ESHIP_API_KEY` para compatibilidade com configurações antigas. A variável `USER_CONTROLER` define a senha única do login do painel. Após entrar, a sessão permanece válida por até 12 horas; é possível encerrá-la pelo botão **Sair**.
+O servidor também aceita `ESHIP_API_KEY` para compatibilidade com configurações antigas. `USER_CONTROLER` é a senha administrativa, com acesso a todos os módulos e configurações. `MONITOR` é a senha de acesso para colaboradores e TVs: permite usar o Dashboard WMS e a tela Configuração para controlar as consultas automáticas e o ciclo de status, mas não acessar Endereçamento, Inventário ou módulos personalizados. As sessões permanecem válidas por até 12 horas; é possível encerrá-las pelo botão **Sair**.
 
 ## Exibição automática por status
 

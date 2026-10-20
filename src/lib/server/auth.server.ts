@@ -1,8 +1,14 @@
 import { getRequest, getRequestHeader, setResponseHeader } from "@tanstack/react-start/server";
+import type { PapelAcesso } from "@/lib/auth.types";
 
 const COOKIE_SESSAO = "wms_painel_session";
 const DURACAO_SESSAO_SEGUNDOS = 12 * 60 * 60;
 const codificador = new TextEncoder();
+
+function obterSenha(papel: PapelAcesso): string | undefined {
+  const nomeVariavel = papel === "admin" ? "USER_CONTROLER" : "MONITOR";
+  return process.env[nomeVariavel]?.trim() || undefined;
+}
 
 function obterChave(secret: string): Promise<CryptoKey> {
   return crypto.subtle.importKey(
@@ -57,22 +63,28 @@ function lerCookieSessao(): string | null {
 
 export async function criarSessao(password: string): Promise<boolean> {
   setResponseHeader("Cache-Control", "no-store");
-  const secret = process.env["USER_CONTROLER"]?.trim();
-  if (!secret) return false;
-
-  const key = await obterChave(secret);
-  const assinaturaEsperada = await crypto.subtle.sign("HMAC", key, codificador.encode(secret));
-  const senhaValida = await crypto.subtle.verify(
-    "HMAC",
-    key,
-    assinaturaEsperada,
-    codificador.encode(password),
-  );
-  if (!senhaValida) return false;
+  let papel: PapelAcesso | null = null;
+  for (const candidato of ["admin", "monitor"] as const) {
+    const secret = obterSenha(candidato);
+    if (!secret) continue;
+    const key = await obterChave(secret);
+    const assinaturaEsperada = await crypto.subtle.sign("HMAC", key, codificador.encode(secret));
+    if (await crypto.subtle.verify("HMAC", key, assinaturaEsperada, codificador.encode(password))) {
+      papel = candidato;
+      break;
+    }
+  }
+  if (!papel) return false;
 
   const expiracao = Math.floor(Date.now() / 1000) + DURACAO_SESSAO_SEGUNDOS;
-  const payload = String(expiracao);
-  const assinatura = await crypto.subtle.sign("HMAC", key, codificador.encode(payload));
+  const secret = obterSenha(papel);
+  if (!secret) return false;
+  const payload = `v2.${papel}.${expiracao}`;
+  const assinatura = await crypto.subtle.sign(
+    "HMAC",
+    await obterChave(secret),
+    codificador.encode(payload),
+  );
   adicionarCookie(
     `${payload}.${codificarBase64Url(new Uint8Array(assinatura))}`,
     DURACAO_SESSAO_SEGUNDOS,
@@ -80,14 +92,31 @@ export async function criarSessao(password: string): Promise<boolean> {
   return true;
 }
 
-export async function sessaoValida(): Promise<boolean> {
+export async function obterPapelSessao(): Promise<PapelAcesso | null> {
   setResponseHeader("Cache-Control", "private, no-store");
-  const secret = process.env["USER_CONTROLER"]?.trim();
   const token = lerCookieSessao();
-  if (!secret || !token) return false;
+  if (!token) return null;
 
-  const [expiracaoTexto, assinaturaTexto, ...restante] = token.split(".");
-  if (!expiracaoTexto || !assinaturaTexto || restante.length > 0) return false;
+  const partes = token.split(".");
+  let papel: PapelAcesso;
+  let payload: string;
+  let expiracaoTexto: string;
+  let assinaturaTexto: string;
+  if (partes.length === 4 && partes[0] === "v2") {
+    const [, papelTexto, expiracao, assinatura] = partes;
+    if (papelTexto !== "admin" && papelTexto !== "monitor") return null;
+    papel = papelTexto;
+    expiracaoTexto = expiracao;
+    assinaturaTexto = assinatura;
+    payload = `v2.${papel}.${expiracaoTexto}`;
+  } else if (partes.length === 2) {
+    [expiracaoTexto, assinaturaTexto] = partes;
+    papel = "admin";
+    payload = expiracaoTexto;
+  } else {
+    return null;
+  }
+
   const expiracao = Number(expiracaoTexto);
   const assinatura = decodificarBase64Url(assinaturaTexto);
   if (
@@ -95,16 +124,29 @@ export async function sessaoValida(): Promise<boolean> {
     expiracao <= Math.floor(Date.now() / 1000) ||
     !assinatura ||
     assinatura.length !== 32
-  ) {
-    return false;
-  }
+  )
+    return null;
 
+  const secret = obterSenha(papel);
+  if (!secret) return null;
   const chave = await obterChave(secret);
-  return crypto.subtle.verify("HMAC", chave, assinatura, codificador.encode(expiracaoTexto));
+  return (await crypto.subtle.verify("HMAC", chave, assinatura, codificador.encode(payload)))
+    ? papel
+    : null;
+}
+
+export async function sessaoValida(): Promise<boolean> {
+  return (await obterPapelSessao()) !== null;
 }
 
 export async function exigirSessao(): Promise<void> {
-  if (!(await sessaoValida())) throw new Error("Autenticação necessária");
+  const papel = await obterPapelSessao();
+  if (!papel) throw new Error("Autenticação necessária");
+  if (papel !== "admin") throw new Error("Acesso administrativo necessário");
+}
+
+export async function exigirAcessoDashboard(): Promise<void> {
+  if (!(await obterPapelSessao())) throw new Error("Autenticação necessária");
 }
 
 export function limparSessao(): void {

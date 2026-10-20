@@ -1,7 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { InventarioModulo } from "@/components/InventarioModulo";
+import { obterPapelAutenticado } from "@/lib/auth.functions";
 
 export const Route = createFileRoute("/inventario")({
+  beforeLoad: async () => {
+    if ((await obterPapelAutenticado()) !== "admin") throw redirect({ to: "/" });
+  },
   head: () => ({
     meta: [
       { title: "Inventário — Painel WMS" },

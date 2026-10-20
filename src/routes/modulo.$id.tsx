@@ -1,11 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { PainelModulo } from "@/components/PainelModulo";
 import { BarraModulos } from "@/components/BarraModulos";
+import { obterPapelAutenticado } from "@/lib/auth.functions";
 import { consultarFuncao } from "@/lib/wms.functions";
 import { buscarModuloPersonalizado, type ModuloPersonalizado } from "@/lib/wms-config";
 
 export const Route = createFileRoute("/modulo/$id")({
+  beforeLoad: async () => {
+    if ((await obterPapelAutenticado()) !== "admin") throw redirect({ to: "/" });
+  },
   head: () => ({ meta: [{ title: "Módulo personalizado — Painel WMS" }] }),
   component: ModuloDinamico,
 });

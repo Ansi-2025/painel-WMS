@@ -9,7 +9,7 @@ import {
 } from "./wms-parameters";
 import { ConsultaEshipSchema, type ConsultaEship } from "./wms-config";
 import { PRODUCT_IMAGE_LINKS } from "./product-image-links.generated";
-import { exigirSessao } from "@/lib/server/auth.server";
+import { exigirAcessoDashboard, exigirSessao } from "@/lib/server/auth.server";
 
 const TIMEOUT_REQUISICAO_ESHIP_MS = 30_000;
 const TIMEOUT_ENDERECAMENTO_ESHIP_MS = 60_000;
@@ -1426,14 +1426,14 @@ export const consultarWms = createServerFn({ method: "POST" })
 export const consultarDashboardWms = createServerFn({ method: "POST" })
   .validator((data) => ConsultaEshipSchema.parse(data))
   .handler(async ({ data }) => {
-    await exigirSessao();
+    await exigirAcessoDashboard();
     return consultarDashboard(data);
   });
 
 export const consultarEvolucaoOrdensWms = createServerFn({ method: "POST" })
   .validator((data) => ConsultaEshipSchema.parse(data))
   .handler(async ({ data }) => {
-    await exigirSessao();
+    await exigirAcessoDashboard();
     return consultarDadosEvolucaoOrdens(data);
   });
 
@@ -1727,7 +1727,7 @@ export const obterProgressoEnderecamentoWms = createServerFn({ method: "POST" })
 export const consultarIntegracaoDiaWms = createServerFn({ method: "POST" })
   .validator((data) => ConsultaEshipSchema.parse(data))
   .handler(async ({ data }) => {
-    await exigirSessao();
+    await exigirAcessoDashboard();
     return consultarIntegracaoDoDia(data);
   });
 

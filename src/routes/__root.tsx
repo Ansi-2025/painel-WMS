@@ -11,7 +11,7 @@ import {
 import { type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { verificarAutenticacao } from "@/lib/auth.functions";
+import { obterPapelAutenticado } from "@/lib/auth.functions";
 
 function NotFoundComponent() {
   return (
@@ -100,7 +100,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   shellComponent: RootShell,
   beforeLoad: async ({ location }) => {
     if (location.pathname === "/login") return;
-    if (!(await verificarAutenticacao())) throw redirect({ to: "/login" });
+    const papel = await obterPapelAutenticado();
+    if (!papel) throw redirect({ to: "/login" });
+    if (papel === "monitor" && !["/", "/configuracao"].includes(location.pathname)) {
+      throw redirect({ to: "/" });
+    }
   },
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
