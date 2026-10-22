@@ -10373,6 +10373,8 @@ export const PRODUCT_IMAGE_LINKS: Readonly<Record<string, string>> = {
     "https://brancomotores.qualyteam.com.br/Documento/doc?codigoDocumento=BRA-+CQ-+ITOO5-%4015720%400",
   "19537168":
     "https://brancomotores.qualyteam.com.br/Documento/doc?codigoDocumento=BRA-+CQ-+ITOO5-%4015721%400",
+  "903222570":
+    "https://brancomotores.qualyteam.com.br/Documento/doc?codigoDocumento=BRA-+CQ-+ITOO5-%4015721%400",
   "12795010":
     "https://brancomotores.qualyteam.com.br/Documento/doc?codigoDocumento=BRA-+CQ-+ITOO5-%4015722%400",
   "19537185":
