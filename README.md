@@ -61,7 +61,7 @@ A chave da API deve permanecer no servidor:
 - **Desenvolvimento local:** variáveis `API_KEY`, `USER_CONTROLER` e `MONITOR` no arquivo `.env`.
 - **Vercel:** variáveis `API_KEY`, `USER_CONTROLER` e `MONITOR` em **Project Settings → Environment Variables**. Depois de salvar ou alterar as variáveis, faça uma nova implantação.
 
-O servidor também aceita `ESHIP_API_KEY` para compatibilidade com configurações antigas. `USER_CONTROLER` é a senha administrativa, com acesso a todos os módulos e configurações. `MONITOR` é a senha de acesso para colaboradores e TVs: permite usar o Dashboard WMS e a tela Configuração para controlar as consultas automáticas e o ciclo de status, mas não acessar Endereçamento, Inventário ou módulos personalizados. As sessões permanecem válidas por até 12 horas; é possível encerrá-las pelo botão **Sair**.
+O servidor também aceita `ESHIP_API_KEY` para compatibilidade com configurações antigas. `USER_CONTROLER` é a senha administrativa, com acesso a todos os módulos e configurações. `MONITOR` é a senha de acesso para colaboradores e TVs: permite usar o Dashboard WMS e a tela Configuração para controlar as consultas automáticas e o ciclo de status, mas não acessar Endereçamento, Inventário ou módulos personalizados. As sessões são renovadas automaticamente quando o painel é acessado e permanecem ativas enquanto houver acessos dentro de cada período de 400 dias. Para encerrar a sessão, use o botão **Sair**.
 
 ## Exibição automática por status
 

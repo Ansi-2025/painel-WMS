@@ -2,7 +2,7 @@ import { getRequest, getRequestHeader, setResponseHeader } from "@tanstack/react
 import type { PapelAcesso } from "@/lib/auth.types";
 
 const COOKIE_SESSAO = "wms_painel_session";
-const DURACAO_SESSAO_SEGUNDOS = 12 * 60 * 60;
+const DURACAO_SESSAO_SEGUNDOS = 400 * 24 * 60 * 60;
 const codificador = new TextEncoder();
 
 function obterSenha(papel: PapelAcesso): string | undefined {
@@ -61,6 +61,20 @@ function lerCookieSessao(): string | null {
   return valor ? valor.slice(prefixo.length) : null;
 }
 
+async function criarTokenSessao(papel: PapelAcesso): Promise<string | null> {
+  const secret = obterSenha(papel);
+  if (!secret) return null;
+
+  const expiracao = Math.floor(Date.now() / 1000) + DURACAO_SESSAO_SEGUNDOS;
+  const payload = `v2.${papel}.${expiracao}`;
+  const assinatura = await crypto.subtle.sign(
+    "HMAC",
+    await obterChave(secret),
+    codificador.encode(payload),
+  );
+  return `${payload}.${codificarBase64Url(new Uint8Array(assinatura))}`;
+}
+
 export async function criarSessao(password: string): Promise<boolean> {
   setResponseHeader("Cache-Control", "no-store");
   let papel: PapelAcesso | null = null;
@@ -76,19 +90,9 @@ export async function criarSessao(password: string): Promise<boolean> {
   }
   if (!papel) return false;
 
-  const expiracao = Math.floor(Date.now() / 1000) + DURACAO_SESSAO_SEGUNDOS;
-  const secret = obterSenha(papel);
-  if (!secret) return false;
-  const payload = `v2.${papel}.${expiracao}`;
-  const assinatura = await crypto.subtle.sign(
-    "HMAC",
-    await obterChave(secret),
-    codificador.encode(payload),
-  );
-  adicionarCookie(
-    `${payload}.${codificarBase64Url(new Uint8Array(assinatura))}`,
-    DURACAO_SESSAO_SEGUNDOS,
-  );
+  const token = await criarTokenSessao(papel);
+  if (!token) return false;
+  adicionarCookie(token, DURACAO_SESSAO_SEGUNDOS);
   return true;
 }
 
@@ -130,9 +134,14 @@ export async function obterPapelSessao(): Promise<PapelAcesso | null> {
   const secret = obterSenha(papel);
   if (!secret) return null;
   const chave = await obterChave(secret);
-  return (await crypto.subtle.verify("HMAC", chave, assinatura, codificador.encode(payload)))
-    ? papel
-    : null;
+  if (!(await crypto.subtle.verify("HMAC", chave, assinatura, codificador.encode(payload)))) {
+    return null;
+  }
+
+  const tokenRenovado = await criarTokenSessao(papel);
+  if (!tokenRenovado) return null;
+  adicionarCookie(tokenRenovado, DURACAO_SESSAO_SEGUNDOS);
+  return papel;
 }
 
 export async function sessaoValida(): Promise<boolean> {
