@@ -1,6 +1,6 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { entrarPainel, verificarAutenticacao } from "@/lib/auth.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,22 +24,45 @@ function Login() {
   const [password, setPassword] = useState("");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [contagem, setContagem] = useState<number | null>(null);
 
-  async function autenticar(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setErro("");
-    setEnviando(true);
-    try {
-      const resultado = await entrar({ data: { password } });
-      if (!resultado.sucesso) {
-        setErro(resultado.erro ?? "Não foi possível entrar.");
-        return;
+  const autenticarSenha = useCallback(
+    async (senha: string) => {
+      setErro("");
+      setEnviando(true);
+      setContagem(null);
+      try {
+        const resultado = await entrar({ data: { password: senha } });
+        if (!resultado.sucesso) {
+          setErro(resultado.erro ?? "Não foi possível entrar.");
+          return;
+        }
+        await navigate({ to: "/", replace: true });
+      } finally {
+        setEnviando(false);
       }
-      await navigate({ to: "/", replace: true });
-    } finally {
-      setEnviando(false);
-    }
+    },
+    [entrar, navigate],
+  );
+
+  function autenticar(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void autenticarSenha(password);
   }
+
+  useEffect(() => {
+    if (contagem === null || enviando) return;
+    if (contagem === 0) {
+      void autenticarSenha(password);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setContagem((valor) => (valor === null ? null : valor - 1));
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [autenticarSenha, contagem, enviando, password]);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10 text-foreground">
@@ -61,12 +84,22 @@ function Login() {
               autoFocus
               id="senha"
               name="password"
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => {
+                const valor = event.target.value;
+                setPassword(valor);
+                setErro("");
+                setContagem(valor ? 30 : null);
+              }}
               required
               type="password"
               value={password}
             />
           </label>
+          {contagem !== null && !enviando && (
+            <p aria-live="polite" className="text-sm text-muted-foreground">
+              Login automático em {contagem} segundos.
+            </p>
+          )}
           {erro && (
             <p aria-live="polite" className="text-sm font-medium text-destructive">
               {erro}
