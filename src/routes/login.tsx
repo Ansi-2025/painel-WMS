@@ -1,6 +1,6 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { entrarPainel, verificarAutenticacao } from "@/lib/auth.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,10 +21,11 @@ export const Route = createFileRoute("/login")({
 function Login() {
   const navigate = useNavigate();
   const entrar = useServerFn(entrarPainel);
+  const formRef = useRef<HTMLFormElement>(null);
   const [password, setPassword] = useState("");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
-  const [contagem, setContagem] = useState<number | null>(null);
+  const [contagem, setContagem] = useState<number | null>(30);
 
   const autenticarSenha = useCallback(
     async (senha: string) => {
@@ -53,7 +54,13 @@ function Login() {
   useEffect(() => {
     if (contagem === null || enviando) return;
     if (contagem === 0) {
-      void autenticarSenha(password);
+      const senha = new FormData(formRef.current ?? undefined).get("password");
+      if (typeof senha !== "string" || senha.length === 0) {
+        setErro("Digite a senha para acessar o painel.");
+        setContagem(null);
+        return;
+      }
+      void autenticarSenha(senha);
       return;
     }
 
@@ -62,7 +69,7 @@ function Login() {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [autenticarSenha, contagem, enviando, password]);
+  }, [autenticarSenha, contagem, enviando]);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10 text-foreground">
@@ -76,7 +83,7 @@ function Login() {
             Informe a senha para acessar o dashboard.
           </p>
         </div>
-        <form className="space-y-4" onSubmit={autenticar}>
+        <form ref={formRef} className="space-y-4" onSubmit={autenticar}>
           <label className="block space-y-2 text-sm font-medium" htmlFor="senha">
             Senha
             <Input
@@ -88,14 +95,13 @@ function Login() {
                 const valor = event.target.value;
                 setPassword(valor);
                 setErro("");
-                setContagem(valor ? 30 : null);
               }}
               required
               type="password"
               value={password}
             />
           </label>
-          {contagem !== null && !enviando && (
+          {contagem !== null && (
             <p aria-live="polite" className="text-sm text-muted-foreground">
               Login automático em {contagem} segundos.
             </p>
