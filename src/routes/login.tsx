@@ -57,13 +57,26 @@ function Login() {
       passwordInputRef.current?.click();
     }
     if (contagem === 0) {
-      const senha = passwordInputRef.current?.value ?? "";
-      if (senha.length === 0) {
+      const verificarSenha = () => {
+        const senha = passwordInputRef.current?.value ?? "";
+        if (senha.length === 0) {
+          return false;
+        }
+
+        void autenticarSenha(senha);
+        return true;
+      };
+
+      if (!verificarSenha()) {
         setErro("Digite a senha para acessar o painel.");
-        setContagem(null);
-        return;
+        const timer = window.setInterval(() => {
+          if (verificarSenha()) {
+            window.clearInterval(timer);
+          }
+        }, 1000);
+
+        return () => window.clearInterval(timer);
       }
-      void autenticarSenha(senha);
       return;
     }
 
@@ -103,7 +116,9 @@ function Login() {
           </label>
           {contagem !== null && (
             <p aria-live="polite" className="text-sm text-muted-foreground">
-              Login automático em {contagem} segundos.
+              {contagem === 0
+                ? "Aguardando a senha ser preenchida para entrar..."
+                : `Login automático em ${contagem} segundos.`}
             </p>
           )}
           {erro && (
