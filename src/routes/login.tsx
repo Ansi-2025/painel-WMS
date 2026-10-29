@@ -21,8 +21,7 @@ export const Route = createFileRoute("/login")({
 function Login() {
   const navigate = useNavigate();
   const entrar = useServerFn(entrarPainel);
-  const formRef = useRef<HTMLFormElement>(null);
-  const [password, setPassword] = useState("");
+  const passwordInputRef = useRef<HTMLInputElement>(null);
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [contagem, setContagem] = useState<number | null>(30);
@@ -48,14 +47,18 @@ function Login() {
 
   function autenticar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void autenticarSenha(password);
+    void autenticarSenha(passwordInputRef.current?.value ?? "");
   }
 
   useEffect(() => {
     if (contagem === null || enviando) return;
+    if (contagem === 5) {
+      passwordInputRef.current?.focus();
+      passwordInputRef.current?.click();
+    }
     if (contagem === 0) {
-      const senha = new FormData(formRef.current ?? undefined).get("password");
-      if (typeof senha !== "string" || senha.length === 0) {
+      const senha = passwordInputRef.current?.value ?? "";
+      if (senha.length === 0) {
         setErro("Digite a senha para acessar o painel.");
         setContagem(null);
         return;
@@ -83,22 +86,19 @@ function Login() {
             Informe a senha para acessar o dashboard.
           </p>
         </div>
-        <form ref={formRef} className="space-y-4" onSubmit={autenticar}>
+        <form className="space-y-4" onSubmit={autenticar}>
           <label className="block space-y-2 text-sm font-medium" htmlFor="senha">
             Senha
             <Input
               autoComplete="current-password"
-              autoFocus
               id="senha"
               name="password"
+              ref={passwordInputRef}
               onChange={(event) => {
-                const valor = event.target.value;
-                setPassword(valor);
                 setErro("");
               }}
               required
               type="password"
-              value={password}
             />
           </label>
           {contagem !== null && (
